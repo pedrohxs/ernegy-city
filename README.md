@@ -157,27 +157,6 @@ npm run build      # build de produção
 
 ---
 
-## Roteiro de apresentação (5 minutos)
-
-| Tempo     | O que falar                                                               | O que mostrar                                  |
-| --------- | ------------------------------------------------------------------------- | ---------------------------------------------- |
-| 0:00–0:30 | “Você já pensou quanta energia se perde no caminho até a sua casa?”       | Tela inicial e a cidade                        |
-| 0:30–1:30 | “Vou construir uma rede mínima: gerador, trafo e três casas.”             | Nova campanha → gerador → trafo 110 V → cabos  |
-| 1:30–2:30 | “Cada cabo tem uma conta: R, corrente, queda e perda.”                    | Clicar no cabo e abrir o inspetor              |
-| 2:30–3:30 | “Se eu usar um cabo longo e fino, ele esquenta. O jogo explica o porquê.” | Post-Mortem de uma falha (pode ser no sandbox) |
-| 3:30–4:30 | “A cidade cresce, os eventos apertam e o orçamento cobra escolhas.”       | HUD, missões e níveis                          |
-| 4:30–5:00 | “O jogo ensina física enquanto você joga.”                                | Tela de conclusão e estrelas                   |
-
-### Perguntas para a turma
-
-1. Por que a rede usa **13,8 kV** em vez de 220 V na rua toda?
-2. Por que um cabo comprido esquenta mais que um cabo curto?
-3. O que acontece se uma casa de 110 V for ligada em um trafo de 220 V?
-4. Por que dois cabos em paralelo reduzem a perda?
-5. O que você faria para atender um hospital sem deixar as casas no escuro?
-
----
-
 ## O que já está pronto e o que falta
 
 **Pronto:** construção, física, solver nodal, campanha de 10 níveis, três modos, economia, eventos, Post-Mortem, Codex, tutorial, saves e áudio procedural.
