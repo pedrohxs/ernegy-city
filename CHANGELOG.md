@@ -2,6 +2,11 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); versionamento semântico.
 
+## [Não lançado]
+
+### Documentação
+- README reescrito para quem nunca jogou: passo a passo do primeiro nível, glossário, explicação do HUD e das cores, contas comentadas, modos, economia, eventos, sintomas/soluções, FAQ e limitações conhecidas.
+
 ## [0.8.2] — Ajustes de personagem e tamanhos
 
 ### Alterado
