@@ -7,6 +7,7 @@ import PostFX from '../render/PostFX'
 import { QUALITY } from '../render/art'
 import { Speed, Tool, View, useGame } from '../store/gameStore'
 import { CHALLENGE_KW, GENS, GEN_ORDER, GenType, REFUND, REPAIR_FRACTION, T_MAX, ZONES, ZONE_ORDER, ZoneType, levelAt } from '../data/balance'
+import { diagnoseCable, diagnoseNode, diagnoseZone, nextAction, type Diagnosis } from '../game/diagnose'
 import { ACHIEVEMENTS, MISSIONS } from '../game/missions'
 import { setMuted } from '../audio/audio'
 import { strings } from '../i18n/pt-BR'
@@ -158,15 +159,32 @@ function MissionsPanel() {
   )
 }
 
+function DiagnosisBlock({ d }: { d: Diagnosis }) {
+  const tone = d.tone === 'bad' ? css.bad : d.tone === 'warn' ? css.warn : d.tone === 'ok' ? css.ok : css.muted
+  return (
+    <div className={tone} style={{ marginTop: 6 }}>
+      <b>{d.title}</b>
+      <div>{d.detail}</div>
+      {d.fix && <div>→ {d.fix}</div>}
+    </div>
+  )
+}
+
 function Inspector() {
   const sel = useGame(s => s.sel), nodes = useGame(s => s.nodes), cables = useGame(s => s.cables)
-  const nodeV = useGame(s => s.nodeV), mismatch = useGame(s => s.mismatch)
+  const nodeV = useGame(s => s.nodeV), mismatch = useGame(s => s.mismatch), powered = useGame(s => s.powered)
   const repair = useGame(s => s.repair), repairCable = useGame(s => s.repairCable), removeCable = useGame(s => s.removeCable)
   const budget = useGame(s => s.budget)
   const selN = sel?.type === 'node' ? nodes.find(n => n.id === sel.id) : null
   const selC = sel?.type === 'cable' ? cables.find(c => c.id === sel.id) : null
   const cableRepairCost = selC ? Math.round(selC.cost * REPAIR_FRACTION) : 0
   const cableRefund = selC ? Math.round(selC.cost * REFUND) : 0
+  const diagN = selN
+    ? selN.kind === 'zone'
+      ? diagnoseZone(selN, nodeV[selN.id], powered.includes(selN.id), mismatch.includes(selN.id))
+      : diagnoseNode(selN, nodeV[selN.id])
+    : null
+  const diagC = selC ? diagnoseCable(selC) : null
   if (!selN && !selC) return null
   return (
     <Panel className={css.inspector}>
@@ -176,7 +194,7 @@ function Inspector() {
         {selN.cap > 0 && <div>Carga {selN.load.toFixed(0)} / {selN.cap} kW</div>}
         {selN.kind === 'gen' && <div>{selN.online ? '✅ Online' : `⏳ Partindo (${selN.startLeft.toFixed(0)}s)`}</div>}
         <div>Temp {selN.temp.toFixed(0)} °C</div>
-        <div className={selN.failed ? css.bad : mismatch.includes(selN.id) ? css.warn : css.ok}>{selN.failed ? '❌ FALHA' : mismatch.includes(selN.id) ? '⚠ TENSÃO INADEQUADA' : '✓ OK'}</div>
+        {diagN && <DiagnosisBlock d={diagN} />}
         {selN.failed && <Button size="sm" variant="primary" onClick={() => repair(selN.id)} disabled={budget < 1}>🛠 Reparar</Button>}
       </>}
       {selC && <>
@@ -187,7 +205,7 @@ function Inspector() {
         <div className={css.mono}>ΔV = R·I = {selC.drop.toFixed(1)} V</div>
         <div className={css.mono}>Perda = R·I² = {(selC.loss / 1000).toFixed(2)} kW</div>
         <div>Temp {selC.temp.toFixed(0)} / {T_MAX} °C</div>
-        <div className={selC.failed ? css.bad : css.ok}>{selC.failed ? '❌ FALHA' : '✓ OK'}</div>
+        {diagC && <DiagnosisBlock d={diagC} />}
         <div className={css.row} style={{ marginTop: 6 }}>
           {selC.failed && (
             <Button size="sm" variant="primary" disabled={budget < cableRepairCost} title={budget < cableRepairCost ? 'Orçamento insuficiente' : undefined} onClick={() => repairCable(selC.id)}>
@@ -215,34 +233,25 @@ function Shortcuts({ onClose }: { onClose: () => void }) {
   )
 }
 
-const TUTORIAL = [T.tutorial.step1, T.tutorial.step2, T.tutorial.step3, T.tutorial.step4]
-
-function Tutorial() {
-  const hasGen = useGame(s => s.nodes.some(n => n.kind === 'gen'))
-  const hasTrafo110 = useGame(s => s.nodes.some(n => n.kind === 'trafo' && n.volt === 110))
-  const hasCable = useGame(s => s.cables.length >= 1)
-  const allPowered = useGame(s => s.demand > 0 && s.supplied >= s.demand)
-  const [step, setStep] = useState(0)
-  const [hidden, setHidden] = useState(false)
-  const stepDone = [hasGen, hasTrafo110, hasCable, allPowered][step]
-  useEffect(() => {
-    if (!stepDone || step >= TUTORIAL.length - 1) return
-    const t = setTimeout(() => setStep(s => Math.min(s + 1, TUTORIAL.length - 1)), 350)
-    return () => clearTimeout(t)
-  }, [step, stepDone])
-  if (hidden || step >= TUTORIAL.length) return null
+function Assistant() {
+  const nodes = useGame(s => s.nodes), cables = useGame(s => s.cables)
+  const powered = useGame(s => s.powered), mismatch = useGame(s => s.mismatch)
+  const nodeV = useGame(s => s.nodeV), supplied = useGame(s => s.supplied), demand = useGame(s => s.demand)
+  const [hidden, setHidden] = useState<string | null>(null)
+  const d = nextAction({ nodes, cables, powered: new Set(powered), mismatch: new Set(mismatch), nodeV, supplied, demand })
+  if (d.tone === 'ok' || hidden === d.title) return null
+  const toneClass = d.tone === 'bad' ? css.bad : d.tone === 'warn' ? css.warn : css.primary
   return (
-    <>
-      <div style={{ position: 'absolute', top: 92, left: -4, width: 480, height: 40, border: '2px dashed var(--color-accent)', borderRadius: 8, pointerEvents: 'none' }} />
-      <Panel style={{ bottom: 24, left: '50%', transform: 'translateX(-50%)', maxWidth: 440, textAlign: 'center' }}>
-        <b className={css.primary}>{T.labels2.tutorial} {step + 1}/{TUTORIAL.length}</b>
-        <div style={{ margin: '4px 0' }}>{stepDone && step === TUTORIAL.length - 1 ? T.tutorial.done : TUTORIAL[step]}</div>
-        <div className={css.row} style={{ justifyContent: 'center' }}>
-          <Button size="sm" variant="primary" onClick={() => setStep(s => s + 1)}>{T.labels2.next}</Button>
-          <Button size="sm" variant="ghost" onClick={() => setHidden(true)}>{T.labels2.skip}</Button>
-        </div>
-      </Panel>
-    </>
+    <Panel style={{ bottom: 24, left: '50%', transform: 'translateX(-50%)', maxWidth: 500 }}>
+      <div className={css.row}>
+        <b className={toneClass}>💡 {T.assistant.title}</b>
+        <span className={css.spacer} />
+        <Button size="sm" variant="ghost" onClick={() => setHidden(d.title)}>{T.assistant.hide}</Button>
+      </div>
+      <div style={{ marginTop: 4 }}><b>{d.title}</b></div>
+      <div className={css.muted}>{d.detail}</div>
+      {d.fix && <div className={css.muted}>→ {d.fix}</div>}
+    </Panel>
   )
 }
 
@@ -323,7 +332,7 @@ export default function App() {
           <CableList />
           <MissionsPanel />
           <Inspector />
-          <Tutorial />
+          <Assistant />
         </>
       )}
 

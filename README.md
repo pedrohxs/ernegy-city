@@ -82,7 +82,7 @@ O jogo abre um **Post-Mortem**: corrente, resistência, queda de tensão, perda,
 - **Painel esquerdo:** ferramentas de geração, transmissão, consumo, conexão e edição.
 - **Lista de cabos:** corrente, queda, perda e temperatura de cada trecho.
 - **Inspetor:** ao selecionar um componente, mostra os números e o estado.
-- **Missões e tutorial:** objetivos extras e os primeiros passos guiados.
+- **Missões e assistente:** objetivos extras e um cartão com o próximo passo, a causa do problema e a solução.
 
 **Cores:** roxo = tensão errada · vermelho = componente falhado · amarelo = perto do limite · fogo/faísca = cabo superaquecendo.
 
@@ -139,7 +139,7 @@ O jogo tem **3 slots de save**, **autosave a cada 5 segundos de jogo** e botões
 | Física        | Funções puras em [`src/electrical/engine.ts`](src/electrical/engine.ts), sem React ou Three                                      |
 | Regras        | Economia, níveis, eventos e missões em [`src/game/advance.ts`](src/game/advance.ts)                                              |
 | Balanceamento | Todos os números em [`src/data/balance.ts`](src/data/balance.ts)                                                                 |
-| Qualidade     | **55 testes** passando, ESLint, TypeScript estrito e CI no GitHub Actions                                                        |
+| Qualidade     | **67 testes** passando, ESLint, TypeScript estrito e CI no GitHub Actions                                                        |
 | Distribuição  | Site estático, sem backend; saves no `localStorage`                                                                              |
 | Documentação  | [Guia completo](docs/GUIA_DO_JOGADOR.md), [balanceamento](docs/BALANCE.md), [assets](docs/ASSETS.md), [desempenho](docs/PERF.md) |
 
@@ -161,8 +161,8 @@ npm run build      # build de produção
 
 ## O que já está pronto e o que falta
 
-**Pronto:** construção, física, solver nodal, campanha de 10 níveis, três modos, economia, eventos, Post-Mortem com reparo/remoção de cabos, Codex, tutorial, save completo com slots e preferências persistentes, áudio procedural.
+**Pronto:** construção, física, solver nodal, campanha de 10 níveis, três modos, economia, eventos, Post-Mortem com reparo/remoção de cabos, diagnóstico contextual, assistente de próximo passo, Codex, save completo com slots e preferências persistentes, áudio procedural.
 
-**Próximos passos:** final de campanha, tutorial com diagnóstico de erros, ajuste fino dos níveis de onda de calor e suporte a celular.
+**Próximos passos:** final de campanha, economia sem becos sem saída, ajuste fino dos níveis de onda de calor e suporte a celular.
 
 > O [Guia do Jogador](docs/GUIA_DO_JOGADOR.md) detalha cada peça, cada grandeza, a economia, os eventos, as missões e as limitações conhecidas.

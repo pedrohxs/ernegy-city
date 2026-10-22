@@ -125,9 +125,9 @@ A cidade cresce a cada 40 s enquanto estiver **totalmente atendida** (~+33 kW po
 - **📶 Continuidade ≥ 95% por 2 min** — `serviceT ≥ 120` e `serviceT/(serviceT+outageT) ≥ 0,95`.
 - **🚫 Apagão zero: 90 s com tudo aceso** — `serviceT ≥ 90` e `outageT = 0` (nenhum apagão desde a primeira luz).
 
-## Tutorial
+## Assistente contextual
 
-5 passos ligados às missões iniciais: colocar gerador → colocar trafo → ligar com cabo → colocar zona 110 V → ligar zona. Avança automaticamente ao detectar a ação; tem "Próximo" e "Pular".
+O HUD mostra o próximo passo (gerador → trafo → cabo → zona) e explica o problema quando algo falha: tensão errada, cabo aquecendo/queimado, equipamento sobrecarregado ou zona sem caminho. A lógica fica em `src/game/diagnose.ts` (funções puras) e o cartão pode ser ocultado. Quando a cidade está atendida, ele desaparece.
 
 ## Limitações / pendências
 

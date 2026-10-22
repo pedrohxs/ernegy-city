@@ -130,7 +130,7 @@ Escolha a ferramenta **Analisar** e clique no componente para ver tensão, carga
 | **Lista de cabos**       | Todos os cabos com corrente, queda, perda e temperatura. Clique para inspecionar.                                                                             |
 | **Missões e conquistas** | Objetivos extras com recompensa em dinheiro e conquistas permanentes.                                                                                         |
 | **Inspetor**             | Ao selecionar um componente, mostra tensão, carga, temperatura e estado. Em cabos, mostra as contas de R, ΔV e perda e os botões de reparar/remover.          |
-| **Tutorial**             | Quatro passos guiados no primeiro bairro, com **Próximo** e **Pular**.                                                                                        |
+| **Assistente**           | Cartão com o próximo passo, a causa provável e a solução. Ele muda conforme a rede evolui e pode ser ocultado.                                                |
 | **Cores**                | **Roxo** = tensão errada; **vermelho escuro** = componente falhado; **amarelo** = perto do limite; **fogo/faísca** = cabo superaquecendo ou queimado.         |
 
 ### As cores dos cabos
@@ -375,6 +375,17 @@ Quando um cabo ou equipamento falha, o jogo abre um relatório com o que acontec
 
 Em falhas de cabo, o próprio relatório oferece **Reparar** (25% do custo) e **Remover** (50% de reembolso), sem precisar demolir a rede. O objetivo não é punir: é mostrar **por que** falhou e **como** resolver.
 
+### Assistente contextual
+
+Enquanto houver algo para resolver, aparece um cartão com o **próximo passo**:
+
+- colocar gerador, trafo ou zona;
+- ligar o gerador ao trafo ou uma zona ao trafo;
+- explicar tensão errada, cabo aquecendo ou cabo queimado;
+- avisar que o gerador está partindo.
+
+O texto muda conforme o estado da rede e pode ser ocultado. Quando tudo está aceso, o cartão desaparece.
+
 ### Missões
 
 | Missão                              | Recompensa |
@@ -400,7 +411,7 @@ As conquistas são permanentes no save e não pagam dinheiro.
 ## Perguntas frequentes
 
 **Preciso saber eletricidade para jogar?**
-Não. O tutorial, o Codex e o Post-Mortem explicam o necessário. Quem já sabe pode usar as fórmulas a seu favor.
+Não. O assistente contextual, o Codex e o Post-Mortem explicam o necessário. Quem já sabe pode usar as fórmulas a seu favor.
 
 **Funciona no celular?**
 O jogo foi feito para **computador**, com teclado e mouse. Não há layout touch dedicado; em telas pequenas a interface pode ficar apertada.

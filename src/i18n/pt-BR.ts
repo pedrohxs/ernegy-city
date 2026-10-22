@@ -15,14 +15,7 @@ export const strings = {
   tools: { gen: 'Gerador', sub: 'Subestação', trafo: 'Trafo', zone: 'Zona', cabo: 'Cabo', move: 'Mover', del: 'Remover', sel: 'Analisar' } as Record<string, string>,
   gens: { gas: 'Gás', hidro: 'Hídrica', solar: 'Solar' } as Record<string, string>,
   buttons2: { undo: '↶ Desfazer', redo: '↷ Refazer', repair: 'Reparar', repairCable: 'Reparar cabo', removeCable: 'Remover cabo', maintenance: 'Manutenção' },
-  labels2: { stars: 'Estrelas', level: 'Nível', goal: 'Objetivo', tutorial: 'Tutorial', skip: 'Pular', next: 'Próximo', free: 'Livre' },
-  tutorial: {
-    step1: 'Escolha "Gerador" e clique no chão livre perto do bairro.',
-    step2: 'Coloque um "Trafo" de 110 V ao lado das casas.',
-    step3: 'Escolha "Cabo" e ligue o Gerador ao Trafo.',
-    step4: 'Ligue o Trafo às três casas com cabos até todas acenderem.',
-    done: 'Bairro energizado! Continue mantendo a cidade acesa.',
-  },
+  assistant: { title: 'Próximo passo', hide: 'Ocultar dica' },
   views: { orbit: '🎥 Orbital', terceira: '🚶 3ª pessoa', primeira: '👁 1ª pessoa' } as Record<string, string>,
   buttons: {
     codex: '📐 Codex',

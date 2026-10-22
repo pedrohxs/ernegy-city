@@ -11,6 +11,8 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); 
 - Confirmação antes de iniciar um novo jogo em um slot que já tem save.
 - Autosave ao trocar de aba ou fechar a página.
 - Preferências de qualidade gráfica, volumes, sensibilidade e mudo persistidas separadamente dos slots.
+- **Diagnóstico contextual**: inspetor e assistente explicam tensão errada, zona sem energia, cabo aquecendo/queimado e equipamento sobrecarregado, com a solução.
+- **Assistente de próximo passo** no HUD, que acompanha a construção e desaparece quando a cidade está atendida.
 
 ### Corrigido
 - Personagem não continua andando depois de soltar a tecla quando a janela perde o foco, a câmera muda ou um menu/pausa é aberto.
