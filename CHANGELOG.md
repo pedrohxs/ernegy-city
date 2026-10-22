@@ -5,7 +5,8 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); 
 ## [Não lançado]
 
 ### Documentação
-- README reescrito para quem nunca jogou: passo a passo do primeiro nível, glossário, explicação do HUD e das cores, contas comentadas, modos, economia, eventos, sintomas/soluções, FAQ e limitações conhecidas.
+- README transformado em apresentação curta (5 minutos) para professor e turma, com passo a passo, física essencial, modos, ficha técnica e roteiro de demonstração.
+- Guia completo do jogador movido para `docs/GUIA_DO_JOGADOR.md` (glossário, contas, economia, eventos, sintomas/soluções, FAQ e limitações).
 
 ## [0.8.2] — Ajustes de personagem e tamanhos
 
