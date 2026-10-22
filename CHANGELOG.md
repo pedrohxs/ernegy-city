@@ -12,6 +12,9 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); 
 - Autosave ao trocar de aba ou fechar a página.
 - Preferências de qualidade gráfica, volumes, sensibilidade e mudo persistidas separadamente dos slots.
 
+### Corrigido
+- Personagem não continua andando depois de soltar a tecla quando a janela perde o foco, a câmera muda ou um menu/pausa é aberto.
+
 ### Documentação
 - README transformado em apresentação curta para professor e turma, com passo a passo, física essencial, modos e ficha técnica.
 - Guia completo do jogador movido para `docs/GUIA_DO_JOGADOR.md` (glossário, contas, economia, eventos, sintomas/soluções, FAQ e limitações).

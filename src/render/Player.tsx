@@ -27,6 +27,9 @@ function clampCamera(from: THREE.Vector3, to: THREE.Vector3, nodes: GNode[]): TH
 export default function Player() {
   const view = useGame(s => s.view)
   const photo = useGame(s => s.photo)
+  const overlay = useGame(s => s.overlay)
+  const paused = useGame(s => s.paused)
+  const report = useGame(s => s.report)
   const { camera } = useThree()
   const grp = useRef<THREE.Group>(null), legs = useRef<(THREE.Group | null)[]>([])
   const st = useRef({ x: 0, z: 40, yaw: 0, pitch: 0.3, walk: 0, vx: 0, vz: 0, init: false })
@@ -45,14 +48,26 @@ export default function Player() {
         st.current.yaw -= e.movementX * sens; st.current.pitch = clamp(st.current.pitch + e.movementY * sens * 0.8, -0.6, 1.1)
       }
     }
+    // Se a janela perde o foco, o keyup pode nunca chegar: zera tudo.
+    const stop = () => { keys.current = {}; vel.current.set(0, 0, 0) }
+    const onVisibility = () => { if (document.visibilityState === 'hidden') stop() }
     window.addEventListener('keydown', kd); window.addEventListener('keyup', ku); window.addEventListener('pointermove', mm)
-    return () => { window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku); window.removeEventListener('pointermove', mm) }
+    window.addEventListener('blur', stop); document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku); window.removeEventListener('pointermove', mm)
+      window.removeEventListener('blur', stop); document.removeEventListener('visibilitychange', onVisibility)
+    }
   }, [])
   useEffect(() => { st.current.init = false }, [view, photo])
+  // Trocar de câmera, abrir menu/pausa ou receber um relatório cancela o movimento.
+  useEffect(() => { keys.current = {}; vel.current.set(0, 0, 0) }, [view, photo, overlay, paused, report])
   useFrame((_, dt) => {
     const s3 = useGame.getState()
     const v = s3.view
-    if (s3.screen !== 'game' || v === 'orbit' || s3.photo || s3.overlay !== null) return
+    if (s3.screen !== 'game' || v === 'orbit' || s3.photo || s3.overlay !== null || s3.paused || s3.report !== null) {
+      vel.current.set(0, 0, 0)
+      return
+    }
     const s = st.current, k = keys.current
     if (k.ArrowLeft || k.KeyQ) s.yaw += 1.8 * dt
     if (k.ArrowRight || k.KeyE) s.yaw -= 1.8 * dt
