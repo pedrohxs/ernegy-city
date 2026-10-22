@@ -270,9 +270,11 @@ Dinheiro infinito, sem crescimento automático, sem eventos e sem economia. É o
 ### Save e continuidade
 
 - **Três slots** independentes.
-- **Autosave a cada 5 segundos de jogo** no `localStorage` do navegador.
-- Não há botão manual de salvar na interface atual; espere alguns segundos após construir antes de fechar a aba.
-- O save guarda a versão do formato e é migrado automaticamente; saves antigos continuam funcionando.
+- **Autosave a cada 5 segundos de jogo** e ao trocar de aba ou fechar a página.
+- O menu de pausa tem **Salvar**, **Carregar** e **Salvar e sair**, com o resumo de cada slot.
+- O menu inicial pede confirmação antes de substituir um slot que já tem jogo.
+- O save guarda nível, estrelas, missões, conquistas, desafio concluído, continuidade, meta do nível e estado da manutenção. Saves antigos são migrados automaticamente.
+- Qualidade gráfica, volumes, sensibilidade e mudo ficam em uma preferência separada dos slots.
 - Não há nuvem: limpar os dados do navegador apaga os saves.
 - **Reiniciar nível** (na pausa) recomeça o modo atual do zero.
 
@@ -404,7 +406,7 @@ Não. O tutorial, o Codex e o Post-Mortem explicam o necessário. Quem já sabe 
 O jogo foi feito para **computador**, com teclado e mouse. Não há layout touch dedicado; em telas pequenas a interface pode ficar apertada.
 
 **O jogo salva sozinho?**
-Sim, a cada 5 segundos de jogo, em um dos três slots do navegador. Como não há botão manual de salvar na interface atual, espere alguns segundos após construir antes de fechar a aba.
+Sim, a cada 5 segundos de jogo e ao trocar de aba ou fechar a página. Na pausa você também pode usar **Salvar**, **Carregar** e **Salvar e sair**, escolhendo um dos três slots.
 
 **Perdi meu save. O que aconteceu?**
 Saves ficam no `localStorage`. Limpar dados do navegador, usar modo anônimo ou trocar de navegador/dispositivo apaga o acesso. Não há conta nem nuvem.

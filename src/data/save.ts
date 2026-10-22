@@ -7,7 +7,7 @@ import { T_AMB } from './balance'
 const GEN_TYPES: GenType[] = ['gas', 'hidro', 'solar']
 const ZONE_TYPES: ZoneType[] = ['casa', 'predio', 'hospital']
 
-export const SAVE_VERSION = 2
+export const SAVE_VERSION = 3
 export const SLOT_COUNT = 3
 export const LEGACY_KEY = 'energy-city-save'
 export const slotKey = (slot: number) => `energy-city-save:slot:${slot}`
@@ -31,6 +31,12 @@ export interface SaveData {
   serviceT: number
   outageT: number
   criticalT: number
+  stars: number
+  totalStars: number
+  challengeDone: boolean
+  everPowered: boolean
+  maintenanceOn: boolean
+  goalT: number
 }
 
 /** Campos exportáveis do estado do jogo (subset aceito pelo save). */
@@ -48,6 +54,12 @@ export interface SaveSource {
   serviceT?: number
   outageT?: number
   criticalT?: number
+  stars?: number
+  totalStars?: number
+  challengeDone?: boolean
+  everPowered?: boolean
+  maintenanceOn?: boolean
+  goalT?: number
 }
 
 const KINDS: Kind[] = ['gen', 'sub', 'trafo', 'zone']
@@ -127,6 +139,8 @@ export function migrate(raw: unknown): SaveData | null {
   const view = VIEWS.includes(raw.view as SaveView) ? (raw.view as SaveView) : undefined
   const done = Array.isArray(raw.done) ? raw.done.filter((d): d is string => typeof d === 'string') : []
   const minNext = Math.max(1, ...nodes.map(n => n.id + 1), ...cables.map(c => c.id + 1))
+  const serviceT = Math.max(0, num(raw.serviceT, 0))
+  const outageT = Math.max(0, num(raw.outageT, 0))
 
   return {
     version: SAVE_VERSION,
@@ -141,9 +155,16 @@ export function migrate(raw: unknown): SaveData | null {
     mode,
     done,
     view,
-    serviceT: Math.max(0, num(raw.serviceT, 0)),
-    outageT: Math.max(0, num(raw.outageT, 0)),
+    serviceT,
+    outageT,
     criticalT: Math.max(0, num(raw.criticalT, 0)),
+    stars: Math.min(3, Math.max(0, Math.floor(num(raw.stars, 0)))),
+    totalStars: Math.max(0, Math.floor(num(raw.totalStars, 0))),
+    challengeDone: bool(raw.challengeDone),
+    // Saves antigos com continuidade já iniciada passam a contar como "já teve luz".
+    everPowered: bool(raw.everPowered) || serviceT > 0 || outageT > 0,
+    maintenanceOn: bool(raw.maintenanceOn),
+    goalT: Math.max(0, num(raw.goalT, 0)),
   }
 }
 
@@ -164,6 +185,12 @@ export function serialize(s: SaveSource): string {
     serviceT: s.serviceT ?? 0,
     outageT: s.outageT ?? 0,
     criticalT: s.criticalT ?? 0,
+    stars: s.stars ?? 0,
+    totalStars: s.totalStars ?? 0,
+    challengeDone: s.challengeDone ?? false,
+    everPowered: s.everPowered ?? false,
+    maintenanceOn: s.maintenanceOn ?? false,
+    goalT: s.goalT ?? 0,
   }
   return JSON.stringify(data)
 }
@@ -197,8 +224,8 @@ export function migrateLegacy(): void {
   }
 }
 
-export function slotSummary(slot: number): { empty: boolean; savedAt: number; level: number; nodes: number } {
+export function slotSummary(slot: number): { empty: boolean; savedAt: number; level: number; nodes: number; stars: number } {
   const d = loadSlot(slot)
-  if (!d) return { empty: true, savedAt: 0, level: 0, nodes: 0 }
-  return { empty: false, savedAt: d.savedAt, level: d.level, nodes: d.nodes.length }
+  if (!d) return { empty: true, savedAt: 0, level: 0, nodes: 0, stars: 0 }
+  return { empty: false, savedAt: d.savedAt, level: d.level, nodes: d.nodes.length, stars: d.stars }
 }

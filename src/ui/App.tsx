@@ -11,6 +11,7 @@ import { ACHIEVEMENTS, MISSIONS } from '../game/missions'
 import { setMuted } from '../audio/audio'
 import { strings } from '../i18n/pt-BR'
 import { formatClock, hourOf } from '../game/clock'
+import { usePreferences } from './usePreferences'
 import { useSimulation } from './useSimulation'
 import { Button, Panel, Select, Tooltip } from './components'
 import { CodexPanel, CreditsPanel, LevelComplete, MainMenu, OptionsPanel, PauseOverlay, PostMortem } from './screens'
@@ -247,6 +248,7 @@ function Tutorial() {
 
 export default function App() {
   useSimulation()
+  usePreferences()
   const screen = useGame(s => s.screen)
   const overlay = useGame(s => s.overlay)
   const photo = useGame(s => s.photo)
@@ -279,6 +281,23 @@ export default function App() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  // Trocar de aba pausa e salva; fechar/recarregar também tenta salvar.
+  useEffect(() => {
+    const flush = () => {
+      const s = useGame.getState()
+      if (s.screen !== 'game') return
+      s.setPaused(true)
+      s.save()
+    }
+    const onVisibility = () => { if (document.visibilityState === 'hidden') flush() }
+    document.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener('pagehide', flush)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility)
+      window.removeEventListener('pagehide', flush)
+    }
   }, [])
 
   return (

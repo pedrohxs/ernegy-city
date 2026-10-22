@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useGame } from '../store/gameStore'
+import { useGame, type Mode } from '../store/gameStore'
 import { levelAt, REFUND, REPAIR_FRACTION } from '../data/balance'
 import { SLOT_COUNT, slotSummary } from '../data/save'
 import { clearLogs, getLogs, logCount } from '../data/telemetry'
@@ -10,8 +10,16 @@ import css from './ui.module.css'
 
 export function MainMenu() {
   const newGame = useGame(s => s.newGame), continueGame = useGame(s => s.continueGame), openOverlay = useGame(s => s.openOverlay)
-  const slot = useGame(s => s.slot), set = useGame(s => s.set)
+  const slot = useGame(s => s.slot), set = useGame(s => s.set), save = useGame(s => s.save)
+  const [confirm, setConfirm] = useState<Mode | null>(null)
   const summaries = Array.from({ length: SLOT_COUNT }, (_, i) => slotSummary(i))
+
+  const start = (m: Mode) => {
+    if (!summaries[slot].empty) return setConfirm(m)
+    newGame(m)
+    save()
+  }
+
   return (
     <div className={css.menu}>
       <div className={css.logo}>⚡ Energy City 3D</div>
@@ -25,11 +33,11 @@ export function MainMenu() {
             </Button>
           ))}
         </div>
-        <Button variant="primary" size="lg" onClick={() => newGame('campanha')}>▶ Nova campanha</Button>
+        <Button variant="primary" size="lg" onClick={() => start('campanha')}>▶ Nova campanha</Button>
         <Button size="lg" onClick={continueGame} disabled={summaries[slot].empty}>⏵ Continuar {summaries[slot].empty ? '(slot vazio)' : `— nível ${summaries[slot].level}`}</Button>
         <div className={css.row}>
-          <Button onClick={() => newGame('sandbox')}>Sandbox</Button>
-          <Button onClick={() => newGame('desafio')}>Desafio</Button>
+          <Button onClick={() => start('sandbox')}>Sandbox</Button>
+          <Button onClick={() => start('desafio')}>Desafio</Button>
         </div>
         <div className={css.divider} />
         <div className={css.row}>
@@ -38,6 +46,18 @@ export function MainMenu() {
           <Button variant="ghost" onClick={() => openOverlay('credits')}>ℹ Créditos</Button>
         </div>
       </div>
+      {confirm && (
+        <Modal title="Substituir save?" onClose={() => setConfirm(null)}>
+          <div className={css.col}>
+            <div>O slot {slot} já tem um jogo salvo no nível {summaries[slot].level}.</div>
+            <div className={css.muted}>Começar um novo jogo substitui esse save.</div>
+            <div className={css.row}>
+              <Button onClick={() => setConfirm(null)}>Cancelar</Button>
+              <Button variant="primary" onClick={() => { const m = confirm; setConfirm(null); newGame(m); save() }}>Substituir e começar</Button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   )
 }
@@ -98,12 +118,45 @@ export function CreditsPanel() {
   )
 }
 
+function SlotManager() {
+  const slot = useGame(s => s.slot)
+  const save = useGame(s => s.save), load = useGame(s => s.load)
+  const setPaused = useGame(s => s.setPaused), setScreen = useGame(s => s.setScreen)
+  const [note, setNote] = useState('')
+  const summaries = Array.from({ length: SLOT_COUNT }, (_, i) => slotSummary(i))
+
+  const doSave = (i: number) => {
+    const ok = save(i)
+    setNote(ok ? `Slot ${i} salvo.` : 'Falha ao salvar.')
+  }
+
+  return (
+    <div className={css.col}>
+      <div className={css.divider} />
+      <span className={css.sectionTitle}>Salvar / carregar</span>
+      {summaries.map((s, i) => (
+        <div className={css.row} key={i}>
+          <b style={{ width: 54 }} className={slot === i ? css.primary : undefined}>Slot {i}</b>
+          <span className={css.muted} style={{ flex: 1 }}>
+            {s.empty ? 'vazio' : `nível ${s.level} · ${s.nodes} componentes${s.stars ? ` · ${'★'.repeat(s.stars)}` : ''}`}
+          </span>
+          <Button size="sm" onClick={() => doSave(i)}>Salvar</Button>
+          <Button size="sm" disabled={s.empty} onClick={() => load(i)}>Carregar</Button>
+        </div>
+      ))}
+      <Button onClick={() => { if (save()) { setPaused(false); setScreen('menu') } else setNote('Falha ao salvar.') }}>💾 Salvar e sair</Button>
+      {note && <span className={css.muted}>{note}</span>}
+    </div>
+  )
+}
+
 export function PauseOverlay() {
   const setPaused = useGame(s => s.setPaused), openOverlay = useGame(s => s.openOverlay), setScreen = useGame(s => s.setScreen), reset = useGame(s => s.reset)
   return (
-    <Modal title="⏸ Pausa">
+    <Modal title="⏸ Pausa" wide>
       <div className={css.col}>
         <Button variant="primary" size="lg" onClick={() => setPaused(false)}>▶ Retomar</Button>
+        <SlotManager />
         <Button onClick={() => openOverlay('options')}>⚙ Opções</Button>
         <Button onClick={() => openOverlay('codex')}>📐 Codex</Button>
         <Button onClick={reset}>↺ Reiniciar nível</Button>

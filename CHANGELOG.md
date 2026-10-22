@@ -6,6 +6,11 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); 
 
 ### Adicionado
 - Recuperação de cabos: **Reparar** (25% do custo) e **Remover** (50% de reembolso) direto no Post-Mortem e no inspetor, com undo/redo.
+- Save v3: estrelas, total de estrelas, desafio concluído, continuidade, meta do nível e manutenção agora persistem, com migração automática de saves antigos.
+- **Salvar**, **Carregar** e **Salvar e sair** no menu de pausa, com resumo dos três slots.
+- Confirmação antes de iniciar um novo jogo em um slot que já tem save.
+- Autosave ao trocar de aba ou fechar a página.
+- Preferências de qualidade gráfica, volumes, sensibilidade e mudo persistidas separadamente dos slots.
 
 ### Documentação
 - README transformado em apresentação curta para professor e turma, com passo a passo, física essencial, modos e ficha técnica.

@@ -52,6 +52,33 @@ describe('save: migração e validação', () => {
     expect(d!.nodes[0].online).toBe(true)
     expect(d!.nodes[0].maintained).toBe(false)
     expect(d!.nodes[0].startLeft).toBe(0)
+    expect(d!.stars).toBe(0)
+    expect(d!.totalStars).toBe(0)
+    expect(d!.challengeDone).toBe(false)
+    expect(d!.everPowered).toBe(false)
+    expect(d!.maintenanceOn).toBe(false)
+    expect(d!.goalT).toBe(0)
+  })
+
+  it('preserva estrelas, desafio, continuidade e meta do nível', () => {
+    const src: SaveSource = {
+      nodes: [makeNode(1, 'gen', 0, 0, 0)], cables: [], budget: 500, nextId: 2,
+      score: 10, level: 4, time: 90, mode: 'campanha', done: ['m1'],
+      stars: 2, totalStars: 7, challengeDone: true, everPowered: true, maintenanceOn: true, goalT: 12.5,
+    }
+    const d = parseSave(serialize(src))
+    expect(d!.stars).toBe(2)
+    expect(d!.totalStars).toBe(7)
+    expect(d!.challengeDone).toBe(true)
+    expect(d!.everPowered).toBe(true)
+    expect(d!.maintenanceOn).toBe(true)
+    expect(d!.goalT).toBe(12.5)
+  })
+
+  it('save v2 com continuidade já iniciada conta como "já teve luz"', () => {
+    const legacy = JSON.stringify({ version: 2, nodes: [makeNode(1, 'gen', 0, 0, 0)], cables: [], budget: 1, nextId: 2, score: 0, level: 1, time: 0, mode: 'campanha', done: [], serviceT: 15 })
+    const d = parseSave(legacy)
+    expect(d!.everPowered).toBe(true)
   })
 
   it('rejeita cabo corrompido (R não numérico)', () => {

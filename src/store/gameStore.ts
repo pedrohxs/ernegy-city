@@ -59,7 +59,7 @@ export interface S {
   repair: (id: number) => void; repairCable: (id: number) => boolean; removeCable: (id: number) => boolean
   setMaintenance: (on: boolean) => void
   stepSim: (dt: number) => Promise<void>
-  save: (slot?: number) => void; load: (slot?: number) => void; reset: () => void
+  save: (slot?: number) => boolean; load: (slot?: number) => void; reset: () => void
 }
 
 const AUTOSAVE_EVERY = 5
@@ -101,12 +101,12 @@ export const useGame = create<S>((set, get) => ({
     if (!sc) return
     const { nodes, cables } = sc.build()
     const ids = [...nodes.map(n => n.id), ...cables.map(c => c.id)]
-    set({ ...init, nodes, cables, nextId: Math.max(1, ...ids) + 1, budget: SANDBOX_BUDGET, mode: 'sandbox', screen: 'game', overlay: null, msg: `Cenário: ${sc.title}` })
+    set({ ...init, nodes, cables, nextId: Math.max(1, ...ids) + 1, budget: SANDBOX_BUDGET, mode: 'sandbox', screen: 'game', overlay: null, paused: false, lastSave: 0, levelResult: null, msg: `Cenário: ${sc.title}` })
   },
   setMode: m => {
     const seed = m === 'sandbox' ? { nodes: [], nextId: 1 } : buildSeedCity()
     set({
-      ...init, paused: false, mode: m, nodes: seed.nodes, nextId: seed.nextId,
+      ...init, paused: false, mode: m, nodes: seed.nodes, nextId: seed.nextId, lastSave: 0, levelResult: null,
       budget: m === 'sandbox' ? SANDBOX_BUDGET : m === 'desafio' ? CHALLENGE_BUDGET : levelAt(1).budget,
       msg: m === 'sandbox' ? `Modo ${m}. Coloque um gerador.` : 'Bairro sem energia: alimente as casas para começar.',
     })
@@ -218,13 +218,18 @@ export const useGame = create<S>((set, get) => ({
     const s = get(), n = slot ?? s.slot
     const ok = saveSlot(n, source(s))
     set({ slot: n, lastSave: s.time, msg: ok ? `Jogo salvo no slot ${n}.` : 'Falha ao salvar.' })
+    return ok
   },
   load: slot => {
     migrateLegacy()
     const n = slot ?? get().slot
     const d = loadSlot(n)
     if (!d) return set({ msg: `Slot ${n} vazio ou corrompido.` })
-    set({ ...d, view: d.view ?? get().view, slot: n, lastSave: d.time, paused: false, simError: '', report: null, sel: null, pending: null, moving: null, msg: `Save do slot ${n} carregado.` })
+    set({
+      ...d, view: d.view ?? get().view, slot: n, lastSave: d.time, paused: false, simError: '',
+      report: null, sel: null, pending: null, moving: null, levelResult: null, overlay: null,
+      past: [], future: [], msg: `Save do slot ${n} carregado.`,
+    })
   },
   reset: () => get().setMode(get().mode),
 }))
@@ -233,4 +238,6 @@ const source = (s: S): SaveSource => ({
   nodes: s.nodes, cables: s.cables, budget: s.budget, nextId: s.nextId,
   score: s.score, level: s.level, time: s.time, mode: s.mode, done: s.done, view: s.view,
   serviceT: s.serviceT, outageT: s.outageT, criticalT: s.criticalT,
+  stars: s.stars, totalStars: s.totalStars, challengeDone: s.challengeDone,
+  everPowered: s.everPowered, maintenanceOn: s.maintenanceOn, goalT: s.goalT,
 })
