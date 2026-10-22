@@ -27,12 +27,14 @@
 No nível 1, três casas de **110 V** esperam energia. A meta é atender **60 kW por 20 segundos**.
 
 1. **Gerador** no chão livre, perto das casas.
-2. **Trafo de 110 V** ao lado das casas.
+2. **Trafo (transformador) de 110 V** ao lado das casas.
 3. **Cabo** ligando o gerador ao trafo.
 4. **Cabo** ligando o trafo a cada casa.
 5. Espere o objetivo completar 20 segundos e veja as estrelas.
 
 ![Bairro semente com as três casas](docs/screenshots/casas.png)
+
+> **O que é um trafo?** É a abreviação de **transformador**: o “adaptador” que recebe os **13.800 V** da rede e entrega **110 V ou 220 V** para as casas. Sem ele, a tensão seria alta demais para os aparelhos.
 
 **A regra de ouro:** `gerador → (subestação opcional) → trafo → zona`.
 
@@ -64,13 +66,13 @@ O jogo abre um **Post-Mortem**: corrente, resistência, queda de tensão, perda,
 
 ## As peças do jogo
 
-| Peça              | O que faz                                                                                  |
-| ----------------- | ------------------------------------------------------------------------------------------ |
-| **Gerador**       | Produz em 13,8 kV. Pode ser a gás (500 kW), hídrico (900 kW) ou solar (200 kW, só de dia). |
-| **Subestação**    | Concentra a alta tensão, tem capacidade de 300 kW e 1% de perda. É opcional.               |
-| **Transformador** | Recebe 13,8 kV e entrega 110 V ou 220 V. Capacidade de 150 kW.                             |
-| **Cabo**          | Cobre ou alumínio, de 16 a 95 mm². Tem resistência, corrente, perda e temperatura.         |
-| **Zona**          | Casa (110 V, 20 kW), prédio (220 V, 40 kW) ou hospital (220 V, 60 kW, crítico).            |
+| Peça                      | O que faz                                                                                  |
+| ------------------------- | ------------------------------------------------------------------------------------------ |
+| **Gerador**               | Produz em 13,8 kV. Pode ser a gás (500 kW), hídrico (900 kW) ou solar (200 kW, só de dia). |
+| **Subestação**            | Concentra a alta tensão, tem capacidade de 300 kW e 1% de perda. É opcional.               |
+| **Transformador (trafo)** | É o “adaptador” de tensão: recebe 13,8 kV e entrega 110 V ou 220 V. Capacidade de 150 kW.  |
+| **Cabo**                  | Cobre ou alumínio, de 16 a 95 mm². Tem resistência, corrente, perda e temperatura.         |
+| **Zona**                  | Casa (110 V, 20 kW), prédio (220 V, 40 kW) ou hospital (220 V, 60 kW, crítico).            |
 
 ---
 

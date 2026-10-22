@@ -17,6 +17,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); 
 
 ### Documentação
 - README transformado em apresentação curta para professor e turma, com passo a passo, física essencial, modos e ficha técnica.
+- README explica que **trafo** é a abreviação de **transformador** e qual é a função dele na rede.
 - Guia completo do jogador movido para `docs/GUIA_DO_JOGADOR.md` (glossário, contas, economia, eventos, sintomas/soluções, FAQ e limitações).
 
 ## [0.8.2] — Ajustes de personagem e tamanhos
