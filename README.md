@@ -157,12 +157,4 @@ npm run check      # tipos + lint + testes
 npm run build      # build de produção
 ```
 
----
-
-## O que já está pronto e o que falta
-
-**Pronto:** construção, física, solver nodal, campanha de 10 níveis, três modos, economia, eventos, Post-Mortem com reparo/remoção de cabos, diagnóstico contextual, assistente de próximo passo, Codex, save completo com slots e preferências persistentes, áudio procedural.
-
-**Próximos passos:** final de campanha, economia sem becos sem saída, ajuste fino dos níveis de onda de calor e suporte a celular.
-
 > O [Guia do Jogador](docs/GUIA_DO_JOGADOR.md) detalha cada peça, cada grandeza, a economia, os eventos, as missões e as limitações conhecidas.
