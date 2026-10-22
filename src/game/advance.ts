@@ -42,8 +42,8 @@ export function advance(s: S, r: Res, dt: number): Partial<S> {
   // falhas novas -> relatório Post-Mortem
   const fc = cables.find((c, i) => c.failed && !s.cables[i].failed)
   const fn = nodes.find((n, i) => n.failed && !s.nodes[i].failed)
-  if (fc) report = { title: `COLAPSO — Cabo C-${fc.id}`, lines: [`Corrente: ${fc.current.toFixed(0)} A (${fc.volt} V), queda ${fc.drop.toFixed(1)} V`, `R = ρ×L/A = ${fc.R.toFixed(3)} Ω`, `P = R×I² = ${fc.R.toFixed(3)} × ${fc.current.toFixed(0)}² ≈ ${(fc.loss / 1000).toFixed(1)} kW`, `Temperatura chegou a ${fc.temp.toFixed(0)} °C`], fixes: FIXES }
-  if (fn) report = { title: `COLAPSO — ${fn.kind === 'gen' ? 'Gerador' : fn.kind === 'sub' ? 'Subestação' : 'Transformador'} #${fn.id}`, lines: [`Carga: ${fn.load.toFixed(0)} kW`, `Capacidade: ${fn.cap} kW`, `Sobrecarga: ${((fn.load / Math.max(fn.cap, 1) - 1) * 100).toFixed(1)}%`], fixes: FIXES }
+  if (fc) report = { title: `COLAPSO — Cabo C-${fc.id}`, lines: [`Corrente: ${fc.current.toFixed(0)} A (${fc.volt} V), queda ${fc.drop.toFixed(1)} V`, `R = ρ×L/A = ${fc.R.toFixed(3)} Ω`, `P = R×I² = ${fc.R.toFixed(3)} × ${fc.current.toFixed(0)}² ≈ ${(fc.loss / 1000).toFixed(1)} kW`, `Temperatura chegou a ${fc.temp.toFixed(0)} °C`], fixes: FIXES, target: { type: 'cable', id: fc.id } }
+  if (fn) report = { title: `COLAPSO — ${fn.kind === 'gen' ? 'Gerador' : fn.kind === 'sub' ? 'Subestação' : 'Transformador'} #${fn.id}`, lines: [`Carga: ${fn.load.toFixed(0)} kW`, `Capacidade: ${fn.cap} kW`, `Sobrecarga: ${((fn.load / Math.max(fn.cap, 1) - 1) * 100).toFixed(1)}%`], fixes: FIXES, target: { type: 'node', id: fn.id } }
   if (fc || fn) beep()
 
   // eventos determinísticos após a primeira onda de calor

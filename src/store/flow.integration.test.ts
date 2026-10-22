@@ -1,5 +1,6 @@
 // Integração do fluxo principal: construir → simular → falhar → relatório.
 import { beforeEach, describe, expect, it } from 'vitest'
+import { REFUND, REPAIR_FRACTION, T_AMB } from '../data/balance'
 import { useGame } from './gameStore'
 
 const g = () => useGame.getState()
@@ -25,7 +26,7 @@ describe('fluxo principal', () => {
     expect(g().losses).toBeGreaterThan(0)
   })
 
-  it('sobrecarrega um cabo e gera Post-Mortem com as contas', async () => {
+  it('sobrecarrega um cabo, gera Post-Mortem e permite reparar/remover', async () => {
     g().set({ tool: 'gen', genType: 'gas' }); g().place(0, 0)
     g().set({ tool: 'trafo', tv: 220 }); g().place(0, 40)
     g().set({ tool: 'zone', zoneType: 'predio' }); g().place(0, 80)
@@ -47,5 +48,32 @@ describe('fluxo principal', () => {
     expect(r!.lines.join(' ')).toMatch(/R =/)
     expect(r!.lines.join(' ')).toMatch(/P = R/)
     expect(g().cables.some(c => c.failed)).toBe(true)
+
+    // O Post-Mortem aponta o cabo exato para permitir a recuperação.
+    const failed = g().cables.find(c => c.failed)
+    if (!failed) throw new Error('nenhum cabo falhou')
+    expect(r!.target).toEqual({ type: 'cable', id: failed.id })
+
+    // Reparo: 25% do custo, volta ao ar e o relatório fecha.
+    const beforeRepair = g().budget
+    const repairCost = Math.round(failed.cost * REPAIR_FRACTION)
+    expect(g().repairCable(failed.id)).toBe(true)
+    const repaired = g().cables.find(c => c.id === failed.id)
+    expect(repaired?.failed).toBe(false)
+    expect(repaired?.temp).toBe(T_AMB)
+    expect(g().budget).toBe(beforeRepair - repairCost)
+    expect(g().report).toBeNull()
+    expect(g().repairCable(failed.id)).toBe(false)
+
+    // Remoção: devolve 50% e o undo restaura o cabo.
+    const beforeRemove = g().budget
+    const refund = Math.round(failed.cost * REFUND)
+    expect(g().removeCable(failed.id)).toBe(true)
+    expect(g().cables.some(c => c.id === failed.id)).toBe(false)
+    expect(g().budget).toBe(beforeRemove + refund)
+    g().undo()
+    expect(g().cables.some(c => c.id === failed.id)).toBe(true)
+    expect(g().budget).toBe(beforeRemove)
+    expect(g().removeCable(9999)).toBe(false)
   })
 })

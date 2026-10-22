@@ -14,7 +14,7 @@ export const strings = {
   },
   tools: { gen: 'Gerador', sub: 'Subestação', trafo: 'Trafo', zone: 'Zona', cabo: 'Cabo', move: 'Mover', del: 'Remover', sel: 'Analisar' } as Record<string, string>,
   gens: { gas: 'Gás', hidro: 'Hídrica', solar: 'Solar' } as Record<string, string>,
-  buttons2: { undo: '↶ Desfazer', redo: '↷ Refazer', repair: 'Reparar', maintenance: 'Manutenção' },
+  buttons2: { undo: '↶ Desfazer', redo: '↷ Refazer', repair: 'Reparar', repairCable: 'Reparar cabo', removeCable: 'Remover cabo', maintenance: 'Manutenção' },
   labels2: { stars: 'Estrelas', level: 'Nível', goal: 'Objetivo', tutorial: 'Tutorial', skip: 'Pular', next: 'Próximo', free: 'Livre' },
   tutorial: {
     step1: 'Escolha "Gerador" e clique no chão livre perto do bairro.',
@@ -60,6 +60,7 @@ export const strings = {
   report: {
     solutions: 'Soluções:',
     close: 'Fechar',
+    cableNotFailed: 'Este cabo não está em falha.',
     fixes: ['Aumentar a seção do condutor', 'Usar cobre (menor resistividade)', 'Dividir a carga em mais ramais/trafos', 'Reduzir o comprimento', 'Construir nova subestação/trafo'],
   },
   errorBoundary: {

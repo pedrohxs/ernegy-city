@@ -7,6 +7,7 @@ import { SCENARIOS } from '../game/scenarios'
 import { buildSeedCity } from '../game/city'
 import { SaveSource, loadSlot, migrateLegacy, saveSlot } from '../data/save'
 import { logError } from '../data/telemetry'
+import { strings } from '../i18n/pt-BR'
 import type { Quality } from '../render/art'
 
 export interface Volumes { master: number; music: number; sfx: number; ambient: number }
@@ -20,7 +21,7 @@ export type Speed = 1 | 2 | 4
 export type Screen = 'menu' | 'game'
 export type Overlay = 'options' | 'credits' | 'codex'
 export interface LevelResult { level: number; stars: number; supply: number; spend: number }
-export interface Report { title: string; lines: string[]; fixes: string[] }
+export interface Report { title: string; lines: string[]; fixes: string[]; target?: { type: 'node' | 'cable'; id: number } }
 export interface Sel { type: 'node' | 'cable'; id: number }
 export interface Snapshot { nodes: GNode[]; cables: Cable[]; budget: number; nextId: number }
 
@@ -55,7 +56,8 @@ export interface S {
   place: (x: number, z: number) => void
   clickNode: (id: number) => void
   undo: () => void; redo: () => void
-  repair: (id: number) => void; setMaintenance: (on: boolean) => void
+  repair: (id: number) => void; repairCable: (id: number) => boolean; removeCable: (id: number) => boolean
+  setMaintenance: (on: boolean) => void
   stepSim: (dt: number) => Promise<void>
   save: (slot?: number) => void; load: (slot?: number) => void; reset: () => void
 }
@@ -167,6 +169,33 @@ export const useGame = create<S>((set, get) => ({
     if (cost > s.budget) return set({ msg: `Reparo custa R$ ${cost} > orçamento.` })
     const spec = n.kind === 'gen' && n.genType ? GENS[n.genType] : null
     set({ ...withHistory(s), budget: s.budget - cost, sel: null, msg: `Reparado ${n.kind} #${id} por R$ ${cost}.`, nodes: s.nodes.map(x => (x.id === id ? { ...x, failed: false, temp: T_AMB, load: 0, online: spec ? spec.startup <= 0 : true, startLeft: spec ? spec.startup : 0 } : x)) })
+  },
+  repairCable: id => {
+    const s = get(), c = s.cables.find(c => c.id === id)
+    if (!c) return false
+    if (!c.failed) { set({ msg: strings.report.cableNotFailed }); return false }
+    const cost = Math.round(c.cost * REPAIR_FRACTION)
+    if (cost > s.budget) { set({ msg: `Reparo do cabo C-${id} custa R$ ${cost} > orçamento.` }); return false }
+    set({
+      ...withHistory(s), budget: s.budget - cost,
+      report: s.report?.target?.type === 'cable' && s.report.target.id === id ? null : s.report,
+      msg: `Cabo C-${id} reparado por R$ ${cost}. Alivie a carga para não queimar de novo.`,
+      cables: s.cables.map(x => (x.id === id ? { ...x, failed: false, temp: T_AMB, current: 0, loss: 0, drop: 0 } : x)),
+    })
+    return true
+  },
+  removeCable: id => {
+    const s = get(), c = s.cables.find(c => c.id === id)
+    if (!c) return false
+    const refund = Math.round(c.cost * REFUND)
+    set({
+      ...withHistory(s), budget: s.budget + refund,
+      cables: s.cables.filter(x => x.id !== id),
+      sel: s.sel?.type === 'cable' && s.sel.id === id ? null : s.sel,
+      report: s.report?.target?.type === 'cable' && s.report.target.id === id ? null : s.report,
+      msg: `Cabo C-${id} removido (+R$ ${refund}).`,
+    })
+    return true
   },
   setMaintenance: on => set({ maintenanceOn: on, msg: on ? `Manutenção ativa: R$ ${(MAINTENANCE_COST * 60).toFixed(0)}/min por componente.` : 'Manutenção desativada.' }),
   stepSim: async dt => {

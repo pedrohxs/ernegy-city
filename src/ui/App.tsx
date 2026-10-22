@@ -6,7 +6,7 @@ import Scene from '../render/Scene'
 import PostFX from '../render/PostFX'
 import { QUALITY } from '../render/art'
 import { Speed, Tool, View, useGame } from '../store/gameStore'
-import { CHALLENGE_KW, GENS, GEN_ORDER, GenType, T_MAX, ZONES, ZONE_ORDER, ZoneType, levelAt } from '../data/balance'
+import { CHALLENGE_KW, GENS, GEN_ORDER, GenType, REFUND, REPAIR_FRACTION, T_MAX, ZONES, ZONE_ORDER, ZoneType, levelAt } from '../data/balance'
 import { ACHIEVEMENTS, MISSIONS } from '../game/missions'
 import { setMuted } from '../audio/audio'
 import { strings } from '../i18n/pt-BR'
@@ -160,9 +160,12 @@ function MissionsPanel() {
 function Inspector() {
   const sel = useGame(s => s.sel), nodes = useGame(s => s.nodes), cables = useGame(s => s.cables)
   const nodeV = useGame(s => s.nodeV), mismatch = useGame(s => s.mismatch)
-  const repair = useGame(s => s.repair), budget = useGame(s => s.budget)
+  const repair = useGame(s => s.repair), repairCable = useGame(s => s.repairCable), removeCable = useGame(s => s.removeCable)
+  const budget = useGame(s => s.budget)
   const selN = sel?.type === 'node' ? nodes.find(n => n.id === sel.id) : null
   const selC = sel?.type === 'cable' ? cables.find(c => c.id === sel.id) : null
+  const cableRepairCost = selC ? Math.round(selC.cost * REPAIR_FRACTION) : 0
+  const cableRefund = selC ? Math.round(selC.cost * REFUND) : 0
   if (!selN && !selC) return null
   return (
     <Panel className={css.inspector}>
@@ -183,6 +186,17 @@ function Inspector() {
         <div className={css.mono}>ΔV = R·I = {selC.drop.toFixed(1)} V</div>
         <div className={css.mono}>Perda = R·I² = {(selC.loss / 1000).toFixed(2)} kW</div>
         <div>Temp {selC.temp.toFixed(0)} / {T_MAX} °C</div>
+        <div className={selC.failed ? css.bad : css.ok}>{selC.failed ? '❌ FALHA' : '✓ OK'}</div>
+        <div className={css.row} style={{ marginTop: 6 }}>
+          {selC.failed && (
+            <Button size="sm" variant="primary" disabled={budget < cableRepairCost} title={budget < cableRepairCost ? 'Orçamento insuficiente' : undefined} onClick={() => repairCable(selC.id)}>
+              🛠 {T.buttons2.repairCable} (R$ {cableRepairCost.toLocaleString('pt-BR')})
+            </Button>
+          )}
+          <Button size="sm" variant="danger" onClick={() => removeCable(selC.id)}>
+            🗑 {T.buttons2.removeCable} (+R$ {cableRefund.toLocaleString('pt-BR')})
+          </Button>
+        </div>
       </>}
     </Panel>
   )

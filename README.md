@@ -159,8 +159,8 @@ npm run build      # build de produção
 
 ## O que já está pronto e o que falta
 
-**Pronto:** construção, física, solver nodal, campanha de 10 níveis, três modos, economia, eventos, Post-Mortem, Codex, tutorial, saves e áudio procedural.
+**Pronto:** construção, física, solver nodal, campanha de 10 níveis, três modos, economia, eventos, Post-Mortem com reparo/remoção de cabos, Codex, tutorial, saves e áudio procedural.
 
-**Próximos passos:** reparo/remoção direta de cabos, save manual na interface, final de campanha, ajuste fino dos níveis de onda de calor e suporte a celular.
+**Próximos passos:** save manual na interface, final de campanha, ajuste fino dos níveis de onda de calor e suporte a celular.
 
 > O [Guia do Jogador](docs/GUIA_DO_JOGADOR.md) detalha cada peça, cada grandeza, a economia, os eventos, as missões e as limitações conhecidas.

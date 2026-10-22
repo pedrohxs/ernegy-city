@@ -129,7 +129,7 @@ Escolha a ferramenta **Analisar** e clique no componente para ver tensão, carga
 | **Seletores**            | Material do cabo (cobre/alumínio), seção (16–95 mm²), tensão do trafo (110/220 V), tipo de gerador e tipo de zona.                                            |
 | **Lista de cabos**       | Todos os cabos com corrente, queda, perda e temperatura. Clique para inspecionar.                                                                             |
 | **Missões e conquistas** | Objetivos extras com recompensa em dinheiro e conquistas permanentes.                                                                                         |
-| **Inspetor**             | Ao selecionar um componente, mostra tensão, carga, temperatura, estado e a opção de reparar (se falhou). Em cabos, mostra as contas de R, ΔV e perda.         |
+| **Inspetor**             | Ao selecionar um componente, mostra tensão, carga, temperatura e estado. Em cabos, mostra as contas de R, ΔV e perda e os botões de reparar/remover.          |
 | **Tutorial**             | Quatro passos guiados no primeiro bairro, com **Próximo** e **Pular**.                                                                                        |
 | **Cores**                | **Roxo** = tensão errada; **vermelho escuro** = componente falhado; **amarelo** = perto do limite; **fogo/faísca** = cabo superaquecendo ou queimado.         |
 
@@ -137,7 +137,7 @@ Escolha a ferramenta **Analisar** e clique no componente para ver tensão, carga
 
 - **Verde → amarelo → vermelho:** o cabo está esquentando. Amarelo é alerta; vermelho é perigo.
 - **Faíscas:** o cabo passou de 75 °C.
-- **Fogo:** o cabo passou de 95 °C e falhou. Ele para de conduzir e precisa ser substituído.
+- **Fogo:** o cabo passou de 95 °C e falhou. Ele para de conduzir; selecione-o para reparar ou remover o trecho.
 
 ---
 
@@ -230,7 +230,7 @@ A corrente é cerca de 62 vezes maior. Como a perda cresce com `I²`, a perda no
 | Casa apagada, mas não roxa | Sem caminho elétrico, gerador offline, componente falhado ou déficit de energia    | Use **Analisar**, veja a lista de cabos e confira o estado do gerador.                                   |
 | Tudo apagado de repente    | Sobrecarga, cabo queimado, queda de gerador ou tempestade                          | Abra o Post-Mortem, veja o componente em falha e reconstrua o trecho.                                    |
 | Cabo amarelo, com faíscas  | Corrente alta para a seção/comprimento                                             | Aumente a seção, use cobre, encurte o trecho ou duplique o cabo.                                         |
-| Cabo com fogo              | Passou de 95 °C e falhou                                                           | O trecho precisa ser substituído. Veja a limitação de reparo de cabos abaixo.                            |
+| Cabo com fogo              | Passou de 95 °C e falhou                                                           | Selecione o cabo: **Reparar** (25% do custo) ou **Remover** (50% de reembolso).                          |
 | Trafo ou subestação quente | Carga acima da capacidade                                                          | Divida a carga em mais transformadores/ramais ou aumente a capacidade da rede.                           |
 | Dinheiro acabando          | Cabos longos e grossos são o maior custo                                           | Encurte caminhos, use alumínio nos trechos de alta tensão (baixa corrente) e evite cabos desnecessários. |
 | Objetivo não avança        | A meta ficou sem ser cumprida por um instante                                      | O contador zera. Mantenha a demanda atendida continuamente pelo tempo pedido.                            |
@@ -306,7 +306,9 @@ O dinheiro entra e sai enquanto o jogo roda. Todos os números ficam em [`src/da
 | Combustível                   | Carga do gerador × taxa do tipo (gás 0,04; hídrica 0,02; solar 0)                 |
 | Manutenção                    | **0,5 R$ por componente por segundo** (opcional; reduz o desgaste térmico)        |
 | Reparo de componente falhado  | **25%** do valor original (gerador, subestação ou trafo)                          |
-| Demolição                     | Devolve **50%** do valor do componente                                            |
+| Reparo de cabo                | **25%** do custo do cabo; a temperatura volta ao ambiente                         |
+| Remoção de cabo               | Devolve **50%** do custo do cabo                                                  |
+| Demolição de componente       | Devolve **50%** do valor do componente                                            |
 | Missões                       | R$ 5.000 a R$ 30.000 cada                                                         |
 
 O orçamento nunca fica negativo: se acabar, o jogo trava em zero e você precisa esperar a receita ou demolir algo.
@@ -369,7 +371,7 @@ Quando um cabo ou equipamento falha, o jogo abre um relatório com o que acontec
 - carga e capacidade do equipamento;
 - lista de soluções possíveis.
 
-O objetivo não é punir: é mostrar **por que** falhou e **como** resolver.
+Em falhas de cabo, o próprio relatório oferece **Reparar** (25% do custo) e **Remover** (50% de reembolso), sem precisar demolir a rede. O objetivo não é punir: é mostrar **por que** falhou e **como** resolver.
 
 ### Missões
 
@@ -413,8 +415,8 @@ O jogo é um site estático; não há backend. Depois de carregado, a simulaçã
 **Por que a cidade cresce sozinha?**
 É a proposta: a cidade só cresce quando você a mantém totalmente atendida. Se ela crescer demais, o orçamento e a rede precisam acompanhar.
 
-**Um cabo queimou e não consigo repará-lo. E agora?**
-Hoje não existe botão de reparo direto para cabos. O jeito mais barato é demolir uma **zona** ligada ao trecho (zonas são gratuitas), reconstruí-la e refazer o cabo. Para trechos entre gerador e trafo, é preciso remover um dos equipamentos. Essa é uma das melhorias prioritárias do projeto.
+**Um cabo queimou. E agora?**
+Selecione o cabo no cenário ou clique nele na lista de cabos. O inspetor mostra **Reparar cabo** (25% do custo, volta ao ar) e **Remover cabo** (50% de reembolso). O Post-Mortem também oferece os dois botões no momento da falha. Se o cabo queimar de novo, o problema é a carga: aumente a seção, encurte o trecho ou duplique o cabo.
 
 **Posso usar vários geradores?**
 Sim. Todos os geradores online são fontes fixas em 13,8 kV, e o solver divide a carga entre eles. Cuidado com a capacidade individual.
@@ -433,7 +435,6 @@ Sim. O jogo procura arquivos em `public/models/` e usa um modelo procedural quan
 ## Limitações conhecidas (versão atual)
 
 - **Desktop primeiro:** interface pensada para teclado e mouse; sem controles touch dedicados.
-- **Cabos não têm reparo nem remoção direta:** um cabo queimado só sai demolindo um componente conectado. Prioridade alta na lista de melhorias.
 - **Campanha sem encerramento:** após o nível 10, o jogo continua no nível 10.
 - **Modelo elétrico didático em CC:** não simula CA, fases, curto-circuito, proteção ou banco de capacitores. A subestação é um concentrador com 1% de perda.
 - **Save local:** sem conta, sem nuvem e sem sincronização entre dispositivos.

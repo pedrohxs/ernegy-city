@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useGame } from '../store/gameStore'
-import { levelAt } from '../data/balance'
+import { levelAt, REFUND, REPAIR_FRACTION } from '../data/balance'
 import { SLOT_COUNT, slotSummary } from '../data/save'
 import { clearLogs, getLogs, logCount } from '../data/telemetry'
+import { strings } from '../i18n/pt-BR'
 import { goalText } from './format'
 import { Button, Modal, Range, Select, Stars } from './components'
 import css from './ui.module.css'
@@ -131,7 +132,13 @@ export function LevelComplete() {
 
 export function PostMortem() {
   const report = useGame(s => s.report), set = useGame(s => s.set)
+  const cables = useGame(s => s.cables), budget = useGame(s => s.budget)
+  const repairCable = useGame(s => s.repairCable), removeCable = useGame(s => s.removeCable)
   if (!report) return null
+  const target = report.target
+  const cable = target?.type === 'cable' ? cables.find(c => c.id === target.id) ?? null : null
+  const repairCost = cable ? Math.round(cable.cost * REPAIR_FRACTION) : 0
+  const refund = cable ? Math.round(cable.cost * REFUND) : 0
   return (
     <Modal title={report.title} wide onClose={() => set({ report: null })}>
       <div className={css.muted}>O que aconteceu, passo a passo:</div>
@@ -140,6 +147,18 @@ export function PostMortem() {
       ))}
       <div className={css.sectionTitle}>Como resolver</div>
       {report.fixes.map(f => <div key={f}>✓ {f}</div>)}
+      {cable && (
+        <div className={css.row} style={{ marginTop: 12 }}>
+          {cable.failed && (
+            <Button variant="primary" size="sm" disabled={budget < repairCost} title={budget < repairCost ? 'Orçamento insuficiente' : undefined} onClick={() => repairCable(cable.id)}>
+              🛠 {strings.buttons2.repairCable} (R$ {repairCost.toLocaleString('pt-BR')})
+            </Button>
+          )}
+          <Button variant="danger" size="sm" onClick={() => removeCable(cable.id)}>
+            🗑 {strings.buttons2.removeCable} (+R$ {refund.toLocaleString('pt-BR')})
+          </Button>
+        </div>
+      )}
       <div className={css.row} style={{ marginTop: 12 }}><Button variant="primary" onClick={() => set({ report: null })}>Fechar</Button></div>
     </Modal>
   )

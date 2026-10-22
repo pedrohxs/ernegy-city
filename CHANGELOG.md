@@ -4,6 +4,9 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); 
 
 ## [Não lançado]
 
+### Adicionado
+- Recuperação de cabos: **Reparar** (25% do custo) e **Remover** (50% de reembolso) direto no Post-Mortem e no inspetor, com undo/redo.
+
 ### Documentação
 - README transformado em apresentação curta para professor e turma, com passo a passo, física essencial, modos e ficha técnica.
 - Guia completo do jogador movido para `docs/GUIA_DO_JOGADOR.md` (glossário, contas, economia, eventos, sintomas/soluções, FAQ e limitações).
