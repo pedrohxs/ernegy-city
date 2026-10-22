@@ -139,7 +139,7 @@ O jogo tem **3 slots de save**, **autosave a cada 5 segundos de jogo** e botões
 | Física        | Funções puras em [`src/electrical/engine.ts`](src/electrical/engine.ts), sem React ou Three                                      |
 | Regras        | Economia, níveis, eventos e missões em [`src/game/advance.ts`](src/game/advance.ts)                                              |
 | Balanceamento | Todos os números em [`src/data/balance.ts`](src/data/balance.ts)                                                                 |
-| Qualidade     | **68 testes** passando, ESLint, TypeScript estrito e CI no GitHub Actions                                                        |
+| Qualidade     | **71 testes** passando, ESLint, TypeScript estrito e CI no GitHub Actions                                                        |
 | Distribuição  | Site estático, sem backend; saves no `localStorage`                                                                              |
 | Documentação  | [Guia completo](docs/GUIA_DO_JOGADOR.md), [balanceamento](docs/BALANCE.md), [assets](docs/ASSETS.md), [desempenho](docs/PERF.md) |
 

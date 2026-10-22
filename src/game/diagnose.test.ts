@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { makeNode } from '../electrical/engine'
 import type { Cable } from '../electrical/engine'
-import { diagnoseCable, diagnoseZone, nextAction } from './diagnose'
+import { diagnoseCable, diagnoseNode, diagnoseZone, nextAction } from './diagnose'
 
 const cable = (id: number, a: number, b: number): Cable => ({
   id,
@@ -45,6 +45,26 @@ describe('diagnóstico de zona', () => {
     expect(d.tone).toBe('warn')
     expect(d.title).toBe('Zona sem energia')
     expect(d.detail).toContain('Nenhuma tensão')
+  })
+})
+
+describe('diagnóstico de equipamento', () => {
+  it('explica equipamento falhado', () => {
+    const d = diagnoseNode({ ...trafo, failed: true, load: 160 }, 110)
+    expect(d.tone).toBe('bad')
+    expect(d.title).toBe('Equipamento falhado')
+  })
+
+  it('avisa que o gerador ainda está partindo', () => {
+    const d = diagnoseNode({ ...gen, online: false, startLeft: 3 }, 0)
+    expect(d.tone).toBe('info')
+    expect(d.title).toBe('Gerador partindo')
+  })
+
+  it('avisa quando o transformador está perto do limite', () => {
+    const d = diagnoseNode({ ...trafo, load: 140, temp: 80 }, 110)
+    expect(d.tone).toBe('warn')
+    expect(d.title).toBe('Perto do limite')
   })
 })
 
