@@ -232,10 +232,11 @@ export function nextAction(s: NextActionInput): Diagnosis {
     }
   }
   if (unpowered.length) {
+    const deficit = Math.max(0, s.demand - s.supplied)
     return {
       tone: 'warn',
       title: 'Zonas sem energia',
-      detail: `${unpowered.length} zona(s) ainda não estão recebendo energia.`,
+      detail: `${unpowered.length} zona(s) sem energia; déficit de ${deficit.toFixed(0)} kW.`,
       fix: 'Confira se o gerador está online e se o cabo chega ao lado correto do trafo.'
     }
   }

@@ -1,12 +1,22 @@
-import { describe, expect, it } from 'vitest'
-import { SAVE_VERSION, migrate, parseSave, serialize, SaveSource } from './save'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { SAVE_VERSION, loadSlot, migrate, parseSave, serialize, SaveSource } from './save'
 import { makeNode } from '../electrical/engine'
 
 const cable = { id: 10, a: 1, b: 2, material: 'cobre' as const, area: 35, length: 10, R: 0.02, cost: 0, current: 0, volt: 220, drop: 0, loss: 0, temp: 25, failed: false }
 
 describe('save: migração e validação', () => {
   it('migra o formato antigo (sem version) para a versão atual', () => {
-    const legacy = JSON.stringify({ nodes: [makeNode(1, 'gen', 0, 0, 0), makeNode(2, 'trafo', 0, 10, 220)], cables: [cable], budget: 1234, nextId: 11, score: 9, level: 2, time: 30, mode: 'campanha', done: ['m1'] })
+    const legacy = JSON.stringify({
+      nodes: [makeNode(1, 'gen', 0, 0, 0), makeNode(2, 'trafo', 0, 10, 220)],
+      cables: [cable],
+      budget: 1234,
+      nextId: 11,
+      score: 9,
+      level: 2,
+      time: 30,
+      mode: 'campanha',
+      done: ['m1']
+    })
     const d = parseSave(legacy)
     expect(d).not.toBeNull()
     expect(d!.version).toBe(SAVE_VERSION)
@@ -47,7 +57,17 @@ describe('save: migração e validação', () => {
   })
 
   it('save antigo sem campos novos assume padrões seguros', () => {
-    const legacy = JSON.stringify({ nodes: [{ id: 1, kind: 'gen', x: 0, z: 0, kW: 0, volt: 0, cap: 400, temp: 25, load: 0, failed: false }], cables: [], budget: 1, nextId: 2, score: 0, level: 1, time: 0, mode: 'campanha', done: [] })
+    const legacy = JSON.stringify({
+      nodes: [{ id: 1, kind: 'gen', x: 0, z: 0, kW: 0, volt: 0, cap: 400, temp: 25, load: 0, failed: false }],
+      cables: [],
+      budget: 1,
+      nextId: 2,
+      score: 0,
+      level: 1,
+      time: 0,
+      mode: 'campanha',
+      done: []
+    })
     const d = parseSave(legacy)
     expect(d!.nodes[0].online).toBe(true)
     expect(d!.nodes[0].maintained).toBe(false)
@@ -62,9 +82,21 @@ describe('save: migração e validação', () => {
 
   it('preserva estrelas, desafio, continuidade e meta do nível', () => {
     const src: SaveSource = {
-      nodes: [makeNode(1, 'gen', 0, 0, 0)], cables: [], budget: 500, nextId: 2,
-      score: 10, level: 4, time: 90, mode: 'campanha', done: ['m1'],
-      stars: 2, totalStars: 7, challengeDone: true, everPowered: true, maintenanceOn: true, goalT: 12.5,
+      nodes: [makeNode(1, 'gen', 0, 0, 0)],
+      cables: [],
+      budget: 500,
+      nextId: 2,
+      score: 10,
+      level: 4,
+      time: 90,
+      mode: 'campanha',
+      done: ['m1'],
+      stars: 2,
+      totalStars: 7,
+      challengeDone: true,
+      everPowered: true,
+      maintenanceOn: true,
+      goalT: 12.5
     }
     const d = parseSave(serialize(src))
     expect(d!.stars).toBe(2)
@@ -92,4 +124,17 @@ describe('save: migração e validação', () => {
     expect(back!.mode).toBe('sandbox')
     expect(back!.view).toBe('orbit')
   })
+
+  it('loadSlot retorna null quando o localStorage falha', () => {
+    vi.stubGlobal('localStorage', {
+      getItem: () => {
+        throw new Error('bloqueado')
+      }
+    })
+    expect(loadSlot(0)).toBeNull()
+  })
+})
+
+afterEach(() => {
+  vi.unstubAllGlobals()
 })

@@ -90,7 +90,7 @@ export const useGame = create<S>((set, get) => ({
   setVolume: (bus, v) => set(s => ({ volumes: { ...s.volumes, [bus]: v } })),
   togglePhoto: () => set(s => ({ photo: !s.photo })),
   newGame: m => { get().setMode(m); set({ screen: 'game', overlay: null, levelResult: null }) },
-  continueGame: () => { const has = loadSlot(get().slot); if (has) get().load(); else get().setMode('campanha'); set({ screen: 'game', overlay: null, levelResult: null }) },
+  continueGame: () => { migrateLegacy(); const has = loadSlot(get().slot); if (has) get().load(); else get().setMode('campanha'); set({ screen: 'game', overlay: null, levelResult: null }) },
   setScreen: s => set({ screen: s }),
   openOverlay: o => set({ overlay: o }),
   closeOverlay: () => set({ overlay: null }),
@@ -227,8 +227,10 @@ export const useGame = create<S>((set, get) => ({
     if (!d) return set({ msg: `Slot ${n} vazio ou corrompido.` })
     set({
       ...d, view: d.view ?? get().view, slot: n, lastSave: d.time, paused: false, simError: '',
-      report: null, sel: null, pending: null, moving: null, levelResult: null, overlay: null,
-      past: [], future: [], msg: `Save do slot ${n} carregado.`,
+      report: null, sel: null, pending: null, moving: null, levelResult: null, overlay: null, photo: false,
+      past: [], future: [], combo: 1, calm: 0, demand: 0, supplied: 0, losses: 0,
+      powered: [], mismatch: [], nodeV: {}, event: '', spikeT: 0, stormT: 0, eventT: 0, eventIdx: 0, mult: 1, rmult: 1,
+      msg: `Save do slot ${n} carregado.`,
     })
   },
   reset: () => get().setMode(get().mode),

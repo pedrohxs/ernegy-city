@@ -16,6 +16,8 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); 
 
 ### Corrigido
 - Personagem não continua andando depois de soltar a tecla quando a janela perde o foco, a câmera muda ou um menu/pausa é aberto.
+- Saída para o menu agora passa por **Salvar e sair**, evitando perder progresso sem aviso.
+- `loadSlot` não quebra mais quando o navegador bloqueia o `localStorage`.
 
 ### Documentação
 - README transformado em apresentação curta para professor e turma, com passo a passo, física essencial, modos e ficha técnica.

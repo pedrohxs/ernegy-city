@@ -196,7 +196,11 @@ export function serialize(s: SaveSource): string {
 }
 
 export function loadSlot(slot: number): SaveData | null {
-  return parseSave(localStorage.getItem(slotKey(slot)))
+  try {
+    return parseSave(localStorage.getItem(slotKey(slot)))
+  } catch {
+    return null
+  }
 }
 
 export function saveSlot(slot: number, s: SaveSource): boolean {
@@ -209,7 +213,11 @@ export function saveSlot(slot: number, s: SaveSource): boolean {
 }
 
 export function clearSlot(slot: number): void {
-  localStorage.removeItem(slotKey(slot))
+  try {
+    localStorage.removeItem(slotKey(slot))
+  } catch {
+    /* ignore */
+  }
 }
 
 /** Move o save antigo (chave única, sem versão) para o slot 0, se ainda não houver. */

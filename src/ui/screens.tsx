@@ -151,7 +151,7 @@ function SlotManager() {
 }
 
 export function PauseOverlay() {
-  const setPaused = useGame(s => s.setPaused), openOverlay = useGame(s => s.openOverlay), setScreen = useGame(s => s.setScreen), reset = useGame(s => s.reset)
+  const setPaused = useGame(s => s.setPaused), openOverlay = useGame(s => s.openOverlay), reset = useGame(s => s.reset)
   return (
     <Modal title="⏸ Pausa" wide>
       <div className={css.col}>
@@ -160,7 +160,6 @@ export function PauseOverlay() {
         <Button onClick={() => openOverlay('options')}>⚙ Opções</Button>
         <Button onClick={() => openOverlay('codex')}>📐 Codex</Button>
         <Button onClick={reset}>↺ Reiniciar nível</Button>
-        <Button variant="ghost" onClick={() => { setPaused(false); setScreen('menu') }}>⏏ Menu inicial</Button>
       </div>
     </Modal>
   )
