@@ -1,4 +1,4 @@
-# ⚡ Energy City 3D
+⚡ Energy City 3D
 
 ### Um jogo para entender como a energia chega até a sua casa.
 
