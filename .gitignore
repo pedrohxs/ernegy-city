@@ -1,0 +1,14 @@
+# dependências e build
+node_modules/
+dist/
+coverage/
+.vite/
+
+# logs
+*.log
+npm-debug.log*
+
+# sistema
+.DS_Store
+Thumbs.db
+desktop.ini

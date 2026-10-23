@@ -1,0 +1,49 @@
+/* Tokens de design (cor, tipografia, espaçamento, sombra, raio). */
+:root {
+  --color-bg: #0b1220;
+  --color-surface: rgba(10, 16, 28, 0.9);
+  --color-surface-2: rgba(22, 32, 50, 0.94);
+  --color-surface-3: rgba(30, 41, 59, 0.9);
+  --color-border: rgba(148, 163, 184, 0.25);
+  --color-border-strong: rgba(148, 163, 184, 0.5);
+  --color-primary: #facc15;
+  --color-primary-ink: #1a1400;
+  --color-accent: #38bdf8;
+  --color-ok: #22c55e;
+  --color-warn: #f59e0b;
+  --color-bad: #ef4444;
+  --color-text: #e2e8f0;
+  --color-muted: #94a3b8;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  --radius-sm: 5px;
+  --radius: 8px;
+  --radius-lg: 14px;
+
+  --font: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --fs-xs: 11px;
+  --fs-sm: 12px;
+  --fs-md: 14px;
+  --fs-lg: 18px;
+  --fs-xl: 30px;
+
+  --shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; }
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font);
+  font-size: var(--fs-md);
+  -webkit-font-smoothing: antialiased;
+}
+button, input, select { font-family: inherit; }
