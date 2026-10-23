@@ -1,6 +1,6 @@
 // Integração do fluxo principal: construir → simular → falhar → relatório.
 import { beforeEach, describe, expect, it } from 'vitest'
-import { REFUND, REPAIR_FRACTION, T_AMB } from '../data/balance'
+import { HEALTH_MAX, REFUND, REPAIR_FRACTION, T_AMB } from '../data/balance'
 import { useGame } from './gameStore'
 
 const g = () => useGame.getState()
@@ -57,9 +57,12 @@ describe('fluxo principal', () => {
     // Reparo: 25% do custo, volta ao ar e o relatório fecha.
     const beforeRepair = g().budget
     const repairCost = Math.round(failed.cost * REPAIR_FRACTION)
+    g().set({ cables: g().cables.map(c => (c.id === failed.id ? { ...c, health: 0, fault: 'wear' } : c)) })
     expect(g().repairCable(failed.id)).toBe(true)
     const repaired = g().cables.find(c => c.id === failed.id)
     expect(repaired?.failed).toBe(false)
+    expect(repaired?.health).toBe(HEALTH_MAX)
+    expect(repaired?.fault).toBeUndefined()
     expect(repaired?.temp).toBe(T_AMB)
     expect(g().budget).toBe(beforeRepair - repairCost)
     expect(g().report).toBeNull()
@@ -75,5 +78,16 @@ describe('fluxo principal', () => {
     expect(g().cables.some(c => c.id === failed.id)).toBe(true)
     expect(g().budget).toBe(beforeRemove)
     expect(g().removeCable(9999)).toBe(false)
+  })
+
+  it('reparo de nó restaura a integridade e remove a falha', () => {
+    g().set({ tool: 'gen', genType: 'gas' }); g().place(0, 0)
+    const generator = g().nodes[0]
+    g().set({ nodes: [{ ...generator, failed: true, fault: 'wear', health: 0 }] })
+    expect(g().repair(generator.id)).toBeUndefined()
+    const repaired = g().nodes[0]
+    expect(repaired.failed).toBe(false)
+    expect(repaired.health).toBe(HEALTH_MAX)
+    expect(repaired.fault).toBeUndefined()
   })
 })

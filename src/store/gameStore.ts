@@ -1,6 +1,6 @@
 import { create } from 'zustand'
-import { CHALLENGE_BUDGET, COST, GENS, GenType, levelAt, MAINTENANCE_COST, PRICE, REFUND, REPAIR_FRACTION, SANDBOX_BUDGET, T_AMB, ZONES, ZoneType } from '../data/balance'
-import { Cable, GNode, Kind, Material, makeNode, resistance } from '../electrical/engine'
+import { CHALLENGE_BUDGET, COST, GENS, GenType, HEALTH_MAX, levelAt, MAINTENANCE_COST, PRICE, REFUND, REPAIR_FRACTION, SANDBOX_BUDGET, T_AMB, ZONES, ZoneType } from '../data/balance'
+import { Cable, GNode, Kind, Material, makeCable, makeNode, resistance } from '../electrical/engine'
 import { solveAsync } from '../electrical/solveService'
 import { Res, advance } from '../game/advance'
 import { SCENARIOS } from '../game/scenarios'
@@ -157,7 +157,7 @@ export const useGame = create<S>((set, get) => ({
     const length = Math.hypot(a.x - b.x, a.z - b.z), cost = length * PRICE[s.material] * (s.area / 35)
     if (cost > s.budget) return set({ msg: `Custo R$ ${cost.toFixed(0)} > orçamento.`, pending: null })
     const R = resistance(s.material, length, s.area)
-    set({ ...withHistory(s), cables: [...s.cables, { id: s.nextId, a: a.id, b: b.id, material: s.material, area: s.area, length, R, cost, current: 0, volt: 220, drop: 0, loss: 0, temp: T_AMB, failed: false }],
+    set({ ...withHistory(s), cables: [...s.cables, makeCable(s.nextId, a.id, b.id, s.material, s.area, length, R, cost)],
       budget: s.budget - cost, nextId: s.nextId + 1, pending: null, msg: `Cabo ${length.toFixed(0)} m: R = ρL/A = ${R.toFixed(3)} Ω, R$ ${cost.toFixed(0)}` })
   },
   undo: () => { const s = get(); if (!s.past.length) return; const prev = s.past[s.past.length - 1], cur = snap(s); set({ ...prev, past: s.past.slice(0, -1), future: [cur, ...s.future], sel: null, pending: null, moving: null, msg: 'Desfeito.' }) },
@@ -168,7 +168,7 @@ export const useGame = create<S>((set, get) => ({
     const cost = Math.round(nodeCost(n) * REPAIR_FRACTION)
     if (cost > s.budget) return set({ msg: `Reparo custa R$ ${cost} > orçamento.` })
     const spec = n.kind === 'gen' && n.genType ? GENS[n.genType] : null
-    set({ ...withHistory(s), budget: s.budget - cost, sel: null, msg: `Reparado ${n.kind} #${id} por R$ ${cost}.`, nodes: s.nodes.map(x => (x.id === id ? { ...x, failed: false, temp: T_AMB, load: 0, online: spec ? spec.startup <= 0 : true, startLeft: spec ? spec.startup : 0 } : x)) })
+    set({ ...withHistory(s), budget: s.budget - cost, sel: null, msg: `Reparado ${n.kind} #${id} por R$ ${cost}.`, nodes: s.nodes.map(x => (x.id === id ? { ...x, failed: false, fault: undefined, health: HEALTH_MAX, temp: T_AMB, load: 0, online: spec ? spec.startup <= 0 : true, startLeft: spec ? spec.startup : 0 } : x)) })
   },
   repairCable: id => {
     const s = get(), c = s.cables.find(c => c.id === id)
@@ -180,7 +180,7 @@ export const useGame = create<S>((set, get) => ({
       ...withHistory(s), budget: s.budget - cost,
       report: s.report?.target?.type === 'cable' && s.report.target.id === id ? null : s.report,
       msg: `Cabo C-${id} reparado por R$ ${cost}. Alivie a carga para não queimar de novo.`,
-      cables: s.cables.map(x => (x.id === id ? { ...x, failed: false, temp: T_AMB, current: 0, loss: 0, drop: 0 } : x)),
+      cables: s.cables.map(x => (x.id === id ? { ...x, failed: false, fault: undefined, health: HEALTH_MAX, temp: T_AMB, current: 0, loss: 0, drop: 0 } : x)),
     })
     return true
   },
