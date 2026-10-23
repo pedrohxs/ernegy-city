@@ -1,23 +1,51 @@
 // Motor elétrico (independe de React/Three). CC. Solver nodal (Kirchhoff) com cargas de potência constante.
 // Regra de laços: malhas são SUPORTADAS (cabos em paralelo dividem corrente). O solver é nodal, então
 // qualquer topologia conectada converge, inclusive múltiplos geradores em paralelo.
-import { CAP, COOL, HEAT, HV, MAINT_WEAR, NODE_HEAT, RHO, T_AMB, T_MAX, ZONE_KW } from '../data/balance'
+import {
+  AMPACITY_COPPER, AMPACITY_FACTOR, CAP, COOL, HEALTH_MAX, HEAT, HV, MAINT_WEAR, NODE_HEAT, RHO, RUPTURE_FACTOR, T_AMB, T_MAX,
+  WEAR_BASE, WEAR_OVERLOAD, WEAR_OVERLOAD_AT, ZONE_KW,
+} from '../data/balance'
 import type { GenType, ZoneType } from '../data/balance'
 export type Material = 'cobre' | 'aluminio'
 export type Kind = 'gen' | 'sub' | 'trafo' | 'zone'
+/** Por que o componente falhou (alimenta o Post-Mortem). */
+export type Fault = 'heat' | 'overcurrent' | 'wear'
 export interface GNode {
   id: number; kind: Kind; x: number; z: number; kW: number; volt: number; cap: number; temp: number; load: number; failed: boolean
   online: boolean; startLeft: number; maintained: boolean; genType?: GenType; zoneType?: ZoneType
+  health: number; fault?: Fault
 }
 export interface Cable {
   id: number; a: number; b: number; material: Material; area: number; length: number
   R: number; cost: number; current: number; volt: number; drop: number; loss: number; temp: number; failed: boolean
+  health: number; fault?: Fault
 }
 export const resistance = (m: Material, L: number, A: number) => (RHO[m] * L) / A // R = ρL/A
 export const jouleLoss = (R: number, I: number) => R * I * I // P = R·I²
+/** Corrente nominal do condutor (A), interpolada entre as referências da NBR 5410. */
+export function ampacity(m: Material, A: number): number {
+  const upperIndex = AMPACITY_COPPER.findIndex(([area]) => area >= A)
+  const lowerIndex = upperIndex < 0 ? AMPACITY_COPPER.length - 2 : Math.max(0, upperIndex - 1)
+  const [lowerArea, lowerCurrent] = AMPACITY_COPPER[lowerIndex]
+  const [upperArea, upperCurrent] = AMPACITY_COPPER[lowerIndex + 1]
+  const copper = lowerCurrent + ((A - lowerArea) * (upperCurrent - lowerCurrent)) / (upperArea - lowerArea)
+  return copper * AMPACITY_FACTOR[m]
+}
+/**
+ * Desgaste (% de integridade por segundo) para uma razão carga/capacidade.
+ * Só desgasta em serviço; acima de 85% acelera linearmente. Manutenção reduz o desgaste.
+ */
+export function wearRate(ratio: number, maintained: boolean): number {
+  if (ratio <= 0) return 0
+  const over = Math.max(0, ratio - WEAR_OVERLOAD_AT) / (1 - WEAR_OVERLOAD_AT)
+  return (WEAR_BASE + WEAR_OVERLOAD * over) * (maintained ? MAINT_WEAR : 1)
+}
 
 export function makeNode(id: number, kind: Kind, x: number, z: number, volt: number): GNode {
-  return { id, kind, x, z, volt, cap: CAP[kind], kW: kind === 'zone' ? ZONE_KW[volt] ?? 20 : 0, temp: T_AMB, load: 0, failed: false, online: true, startLeft: 0, maintained: false }
+  return { id, kind, x, z, volt, cap: CAP[kind], kW: kind === 'zone' ? ZONE_KW[volt] ?? 20 : 0, temp: T_AMB, load: 0, failed: false, online: true, startLeft: 0, maintained: false, health: HEALTH_MAX }
+}
+export function makeCable(id: number, a: number, b: number, material: Material, area: number, length: number, R = resistance(material, length, area), cost = 0): Cable {
+  return { id, a, b, material, area, length, R, cost, current: 0, volt: 220, drop: 0, loss: 0, temp: T_AMB, failed: false, health: HEALTH_MAX }
 }
 
 export interface SolveResult {
@@ -104,14 +132,22 @@ export function solve(nodes: GNode[], cables: Cable[], mult = 1, rmult = 1): Sol
   return res
 }
 
-export function stepCable(c: Cable, I: number, V: number, drop: number, dt: number): Cable {
+export function stepCable(c: Cable, I: number, V: number, drop: number, dt: number, maintained = false): Cable {
   const loss = jouleLoss(c.R, I)
   const temp = c.temp + (loss * HEAT - (c.temp - T_AMB) * COOL) * dt
-  return { ...c, current: I, volt: V, drop, loss, temp, failed: c.failed || temp >= T_MAX }
+  if (c.failed) return { ...c, current: I, volt: V, drop, loss, temp }
+  const Iz = ampacity(c.material, c.area)
+  const health = Math.max(0, c.health - wearRate(I / Iz, maintained) * dt)
+  // ordem: curto (instantâneo) > térmico (P = R·I² acumulado) > fim de vida útil
+  const fault: Fault | undefined = I > Iz * RUPTURE_FACTOR ? 'overcurrent' : temp >= T_MAX ? 'heat' : health <= 0 ? 'wear' : undefined
+  return { ...c, current: I, volt: V, drop, loss, temp, health, failed: fault !== undefined, fault }
 }
 export function stepNode(n: GNode, loadKW: number, dt: number): GNode {
   if (n.cap <= 0) return { ...n, load: loadKW }
   const wear = n.maintained ? MAINT_WEAR : 1
   const temp = n.temp + (T_AMB + NODE_HEAT * (loadKW / n.cap) ** 2 * wear - n.temp) * COOL * dt
-  return { ...n, load: loadKW, temp, failed: n.failed || temp >= T_MAX }
+  if (n.failed) return { ...n, load: loadKW, temp }
+  const health = Math.max(0, n.health - wearRate(loadKW / n.cap, n.maintained) * dt)
+  const fault: Fault | undefined = temp >= T_MAX ? 'heat' : health <= 0 ? 'wear' : undefined
+  return { ...n, load: loadKW, temp, health, failed: fault !== undefined, fault }
 }

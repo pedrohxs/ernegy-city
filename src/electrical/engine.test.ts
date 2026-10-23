@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { Cable, jouleLoss, makeNode, resistance, solve, stepCable, stepNode } from './engine'
-import { T_MAX } from '../data/balance'
+import { Cable, ampacity, jouleLoss, makeCable, makeNode, resistance, solve, stepCable, stepNode, wearRate } from './engine'
+import { RUPTURE_FACTOR, T_MAX, WEAR_BASE } from '../data/balance'
 
-const cab = (id: number, a: number, b: number, R: number): Cable => ({ id, a, b, material: 'cobre', area: 35, length: 10, R, cost: 0, current: 0, volt: 220, drop: 0, loss: 0, temp: 25, failed: false })
+const cab = (id: number, a: number, b: number, R: number, area = 35): Cable => makeCable(id, a, b, 'cobre', area, 10, R)
 const net = (lv: number[], zoneV = 220) => ({
   nodes: [makeNode(1, 'gen', 0, 0, 0), makeNode(2, 'trafo', 10, 0, 220), makeNode(3, 'zone', 20, 0, zoneV)],
   cables: [cab(10, 1, 2, 0.001), ...lv.map((R, i) => cab(11 + i, 2, 3, R))],
@@ -54,9 +54,11 @@ describe('solver nodal', () => {
 })
 describe('passos térmicos', () => {
   it('cabo esquenta por efeito Joule e falha em T_MAX', () => {
-    let c = cab(1, 1, 2, 0.1)
+    // 95 mm² (I_z ≈ 233 A): 500 A aquece até falhar, mas fica abaixo do limite de rompimento (3·I_z)
+    let c = cab(1, 1, 2, 0.1, 95)
     for (let i = 0; i < 500 && !c.failed; i++) c = stepCable(c, 500, 220, 0, 0.1)
     expect(c.failed).toBe(true)
+    expect(c.fault).toBe('heat')
     expect(c.temp).toBeGreaterThanOrEqual(T_MAX)
   })
   it('cabo sem corrente esfria até a temperatura ambiente', () => {
@@ -70,9 +72,9 @@ describe('passos térmicos', () => {
     for (let i = 0; i < 5000 && !n.failed; i++) n = stepNode(n, 300, 0.1)
     expect(n.failed).toBe(true)
   })
-  it('trafo dentro da capacidade não falha', () => {
+  it('trafo abaixo de 85% da capacidade não falha', () => {
     let n = makeNode(1, 'trafo', 0, 0, 220)
-    for (let i = 0; i < 2000; i++) n = stepNode(n, 150, 0.1)
+    for (let i = 0; i < 2000; i++) n = stepNode(n, 120, 0.1)
     expect(n.failed).toBe(false)
   })
   it('manutenção reduz o aquecimento', () => {
@@ -111,5 +113,45 @@ describe('múltiplos geradores, subestação e tempestade', () => {
     const { nodes, cables } = net([0.1])
     const normal = solve(nodes, cables, 1, 1), storm = solve(nodes, cables, 1, 1.3)
     expect(storm.drop[11]).toBeGreaterThan(normal.drop[11])
+  })
+})
+
+describe('ampacidade, rompimento e desgaste', () => {
+  it('ampacidade corresponde à tabela NBR 5410 (cobre B1)', () => {
+    const table: [number, number][] = [[16, 76], [25, 101], [35, 125], [50, 151], [70, 192], [95, 232]]
+    for (const [A, Iz] of table) expect(ampacity('cobre', A)).toBe(Iz)
+    expect(ampacity('cobre', 20)).toBeCloseTo(76 + (4 / 9) * 25)
+    expect(ampacity('aluminio', 35)).toBeLessThan(ampacity('cobre', 35))
+  })
+  it('corrente acima de 3·I_z rompe o cabo no mesmo passo (curto)', () => {
+    const c = cab(1, 1, 2, 0.001, 16) // I_z ≈ 77 A
+    const r = stepCable(c, ampacity('cobre', 16) * RUPTURE_FACTOR * 1.01, 220, 0, 0.1)
+    expect(r.failed).toBe(true)
+    expect(r.fault).toBe('overcurrent')
+  })
+  it('corrente nominal não rompe nem aquece até falhar', () => {
+    let c = cab(1, 1, 2, 0.001, 35)
+    for (let i = 0; i < 1000; i++) c = stepCable(c, ampacity('cobre', 35), 220, 0, 0.1)
+    expect(c.failed).toBe(false)
+  })
+  it('desgaste: zero sem carga, base em serviço, acelera acima de 85%', () => {
+    expect(wearRate(0, false)).toBe(0)
+    expect(wearRate(0.5, false)).toBeCloseTo(WEAR_BASE, 6)
+    expect(wearRate(1, false)).toBeGreaterThan(wearRate(0.85, false) * 10)
+    expect(wearRate(1, true)).toBeLessThan(wearRate(1, false)) // manutenção preserva
+  })
+  it('integridade zerada derruba o componente por fim de vida útil', () => {
+    const c = stepCable({ ...cab(1, 1, 2, 0.001, 35), health: 0.0001 }, 50, 220, 0, 1)
+    expect(c.failed).toBe(true)
+    expect(c.fault).toBe('wear')
+    const n = stepNode({ ...makeNode(2, 'trafo', 0, 0, 220), health: 0.0001 }, 50, 1)
+    expect(n.failed).toBe(true)
+    expect(n.fault).toBe('wear')
+  })
+  it('sobrecarga gasta a integridade do trafo mais rápido', () => {
+    let ok = makeNode(1, 'trafo', 0, 0, 220), over = makeNode(2, 'trafo', 0, 0, 220)
+    for (let i = 0; i < 100; i++) { ok = stepNode(ok, 75, 0.1); over = stepNode(over, 150, 0.1) }
+    expect(over.health).toBeLessThan(ok.health)
+    expect(ok.health).toBeLessThan(100)
   })
 })
