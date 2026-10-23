@@ -13,6 +13,16 @@ export const HV = 13800
 export const RHO: Record<string, number> = { cobre: 0.017, aluminio: 0.028 } // Ω·mm²/m
 export const PRICE: Record<string, number> = { cobre: 92, aluminio: 48 } // R$/m a 35 mm²
 export const AREAS = [16, 25, 35, 50, 70, 95]
+// Ampacidade do cobre (A), referência B1/PVC 70 °C da NBR 5410.
+export const AMPACITY_COPPER: readonly [number, number][] = [[16, 76], [25, 101], [35, 125], [50, 151], [70, 192], [95, 232]]
+export const AMPACITY_FACTOR: Record<string, number> = { cobre: 1, aluminio: 0.78 }
+export const RUPTURE_FACTOR = 3 // I > 3·I_z: rompimento instantâneo (curto) antes de dar tempo de aquecer
+
+// ---- Integridade / desgaste (0–100%) ----
+export const HEALTH_MAX = 100
+export const WEAR_BASE = 0.01 // %/s perdidos só por estar em serviço (~2,8 h até zerar)
+export const WEAR_OVERLOAD_AT = 0.85 // acima de 85% da capacidade o desgaste acelera
+export const WEAR_OVERLOAD = 0.5 // %/s extras por cada 15 p.p. acima de 85% (100% de carga → +0,5 %/s)
 
 // ---- Nós ----
 export const CAP: Record<string, number> = { gen: 0, sub: 300, trafo: 150, zone: 0 } // kW (gerador vem do tipo)

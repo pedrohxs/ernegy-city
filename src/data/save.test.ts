@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SAVE_VERSION, loadSlot, migrate, parseSave, serialize, SaveSource } from './save'
 import { makeNode } from '../electrical/engine'
 
-const cable = { id: 10, a: 1, b: 2, material: 'cobre' as const, area: 35, length: 10, R: 0.02, cost: 0, current: 0, volt: 220, drop: 0, loss: 0, temp: 25, failed: false }
+const cable = { id: 10, a: 1, b: 2, material: 'cobre' as const, area: 35, length: 10, R: 0.02, cost: 0, current: 0, volt: 220, drop: 0, loss: 0, temp: 25, failed: false, health: 100 }
 
 describe('save: migração e validação', () => {
   it('migra o formato antigo (sem version) para a versão atual', () => {
@@ -123,6 +123,30 @@ describe('save: migração e validação', () => {
     expect(back!.version).toBe(SAVE_VERSION)
     expect(back!.mode).toBe('sandbox')
     expect(back!.view).toBe('orbit')
+  })
+
+  it('save v3 sem integridade entra com 100% e sem falha registrada', () => {
+    const { health: _h, ...oldCable } = cable
+    const oldGen = { id: 1, kind: 'gen', x: 0, z: 0, kW: 0, volt: 0, cap: 500, temp: 25, load: 0, failed: false }
+    const d = parseSave(JSON.stringify({ version: 3, nodes: [oldGen, makeNode(2, 'trafo', 0, 10, 220)], cables: [oldCable], budget: 1, nextId: 11, score: 0, level: 1, time: 0, mode: 'campanha', done: [] }))
+    expect(_h).toBe(100)
+    expect(d!.version).toBe(SAVE_VERSION)
+    expect(d!.nodes[0].health).toBe(100)
+    expect(d!.cables[0].health).toBe(100)
+    expect(d!.cables[0].fault).toBeUndefined()
+  })
+
+  it('preserva integridade e motivo da falha; limita integridade a 0–100', () => {
+    const src: SaveSource = {
+      nodes: [{ ...makeNode(1, 'gen', 0, 0, 0), health: 42 }, makeNode(2, 'trafo', 0, 10, 220)],
+      cables: [{ ...cable, health: 0, failed: true, fault: 'overcurrent' }], budget: 1, nextId: 11, score: 0, level: 1, time: 0, mode: 'sandbox', done: [],
+    }
+    const d = parseSave(serialize(src))
+    expect(d!.nodes[0].health).toBe(42)
+    expect(d!.cables[0].fault).toBe('overcurrent')
+    const bad = migrate({ nodes: [{ ...makeNode(1, 'gen', 0, 0, 0), health: 500, fault: 'xyz' }], cables: [] })
+    expect(bad!.nodes[0].health).toBe(100)
+    expect(bad!.nodes[0].fault).toBeUndefined()
   })
 
   it('loadSlot retorna null quando o localStorage falha', () => {

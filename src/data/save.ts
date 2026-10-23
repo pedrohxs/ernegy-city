@@ -1,13 +1,15 @@
 // Persistência versionada (localStorage): valida, migra e rejeita saves corrompidos
 // sem quebrar o jogo. Suporta múltiplos slots e migração do formato antigo (v1).
-import type { Cable, GNode, Kind, Material } from '../electrical/engine'
+import type { Cable, Fault, GNode, Kind, Material } from '../electrical/engine'
 import type { GenType, ZoneType } from './balance'
-import { T_AMB } from './balance'
+import { HEALTH_MAX, T_AMB } from './balance'
 
 const GEN_TYPES: GenType[] = ['gas', 'hidro', 'solar']
 const ZONE_TYPES: ZoneType[] = ['casa', 'predio', 'hospital']
+const FAULTS: Fault[] = ['heat', 'overcurrent', 'wear']
 
-export const SAVE_VERSION = 3
+// v4: integridade (health) e motivo da falha (fault) em nós e cabos. Saves ≤ v3 entram com 100%.
+export const SAVE_VERSION = 4
 export const SLOT_COUNT = 3
 export const LEGACY_KEY = 'energy-city-save'
 export const slotKey = (slot: number) => `energy-city-save:slot:${slot}`
@@ -71,6 +73,8 @@ const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFin
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
 const num = (v: unknown, fallback: number) => (isNum(v) ? v : fallback)
 const bool = (v: unknown) => v === true
+const health = (v: unknown) => Math.min(HEALTH_MAX, Math.max(0, num(v, HEALTH_MAX)))
+const fault = (v: unknown): Fault | undefined => (FAULTS.includes(v as Fault) ? (v as Fault) : undefined)
 
 export function sanitizeNode(raw: unknown): GNode | null {
   if (!isObj(raw)) return null
@@ -93,6 +97,8 @@ export function sanitizeNode(raw: unknown): GNode | null {
     maintained: bool(raw.maintained),
     genType: GEN_TYPES.includes(raw.genType as GenType) ? (raw.genType as GenType) : undefined,
     zoneType: ZONE_TYPES.includes(raw.zoneType as ZoneType) ? (raw.zoneType as ZoneType) : undefined,
+    health: health(raw.health),
+    fault: fault(raw.fault),
   }
 }
 
@@ -115,6 +121,8 @@ export function sanitizeCable(raw: unknown): Cable | null {
     loss: num(raw.loss, 0),
     temp: num(raw.temp, T_AMB),
     failed: bool(raw.failed),
+    health: health(raw.health),
+    fault: fault(raw.fault),
   }
 }
 
