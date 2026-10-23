@@ -17,7 +17,8 @@ const cable = (id: number, a: number, b: number): Cable => ({
   drop: 0.1,
   loss: 1,
   temp: 25,
-  failed: false
+  failed: false,
+  health: 100
 })
 
 const gen = { ...makeNode(1, 'gen', 0, 0, 0), cap: 500, online: true }

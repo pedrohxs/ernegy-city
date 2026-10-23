@@ -1,7 +1,7 @@
 // Simulação de balanceamento: monta layouts de referência, roda partidas automáticas
 // com passo fixo e verifica se as metas dos níveis 1-10 são alcançáveis e quanto sobra de orçamento.
-import { COST, ENERGY_PRICE, GENS, GROWTH_EVERY, HEAT_WAVE_AFTER, Level, LEVELS, LOSS_COST, PRICE, SUB_LOSS, T_AMB, WAVE_MULT } from '../data/balance'
-import { Cable, GNode, makeNode, resistance, solve, stepCable, stepNode } from '../electrical/engine'
+import { COST, ENERGY_PRICE, GENS, GROWTH_EVERY, HEAT_WAVE_AFTER, Level, LEVELS, LOSS_COST, PRICE, SUB_LOSS, WAVE_MULT } from '../data/balance'
+import { Cable, GNode, makeCable, makeNode, resistance, solve, stepCable, stepNode } from '../electrical/engine'
 import { goalSatisfied } from './advance'
 import type { S } from '../store/gameStore'
 
@@ -11,11 +11,8 @@ const isHeat = (t: number) => t > HEAT_WAVE_AFTER && t % 90 < 20
 
 interface Layout { nodes: GNode[]; cables: Cable[]; cost: number; zones: GNode[] }
 let uid = 1
-const mkCable = (a: number, b: number, len: number, area: number): Cable => {
-  const R = resistance('cobre', len, area)
-  const cost = len * PRICE.cobre * (area / 35)
-  return { id: uid++, a, b, material: 'cobre', area, length: len, R, cost, current: 0, volt: 220, drop: 0, loss: 0, temp: T_AMB, failed: false }
-}
+const mkCable = (a: number, b: number, len: number, area: number): Cable =>
+  makeCable(uid++, a, b, 'cobre', area, len, resistance('cobre', len, area), len * PRICE.cobre * (area / 35))
 
 /** Layout de referência: clusters independentes gerador→subestação→trafos→zonas. */
 export function buildLayout(target: number): Layout {
