@@ -12,3 +12,6 @@ npm-debug.log*
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# clone local do upstream (repositório git aninhado)
+ernegy-city/

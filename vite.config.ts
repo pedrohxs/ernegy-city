@@ -1,7 +1,10 @@
+/// <reference types="vitest" />
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
+  // ernegy-city/ é um clone local do repositório upstream: fora dos testes deste projeto.
+  test: { exclude: ['**/node_modules/**', '**/dist/**', 'ernegy-city/**'] },
   build: {
     rollupOptions: {
       output: {
