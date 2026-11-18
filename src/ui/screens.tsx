@@ -114,7 +114,7 @@ export function CreditsPanel() {
   return (
     <Modal title="ℹ Créditos" onClose={close}>
       <div className={css.col}>
-        <div><b>Energy City 3D</b> — simulador didático de rede elétrica.</div>
+        <div><b>{strings.appTitle}</b> — simulador didático de rede elétrica.</div>
         <div className={css.muted}>Motor elétrico, progressão, arte procedural e áudio sintetizado.</div>
         <div>Feito com React, TypeScript, three.js / React Three Fiber e zustand.</div>
         <div className={css.row}><Button variant="primary" onClick={close}>Fechar</Button></div>

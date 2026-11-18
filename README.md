@@ -1,6 +1,6 @@
-# Energy City 3D
+# Rede Viva
 
-Projete uma rede elétrica para acender um bairro e acompanhar o crescimento da cidade. **Energy City 3D** é um simulador didático em 3D. Cada escolha de tensão, material, seção e rota afeta a queda de tensão, as perdas e a integridade da rede.
+Projete uma rede elétrica para acender um bairro e acompanhar o crescimento da cidade. **Rede Viva** é um simulador didático em 3D. Cada escolha de tensão, material, seção e rota afeta a queda de tensão, as perdas e a integridade da rede.
 
 ![Bairro inicial energizado, com a meta de 60 kW atingida](docs/screenshots/gameplay.png)
 

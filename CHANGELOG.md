@@ -4,6 +4,8 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); 
 
 ## [Não lançado]
 
+- O jogo passa a se chamar **Rede Viva**.
+
 ### Eletricista e escala da cidade
 
 - Eletricista articulado com caminhada e corrida ligadas ao deslocamento, apoio dos pés, balanço de braços e câmera de terceira pessoa mais próxima.

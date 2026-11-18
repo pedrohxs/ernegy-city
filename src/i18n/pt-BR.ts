@@ -1,6 +1,6 @@
 // Textos da interface em pt-BR, centralizados e prontos para i18n.
 export const strings = {
-  appTitle: 'Energy City 3D',
+  appTitle: 'Rede Viva',
   hud: {
     demand: 'Demanda',
     supplied: 'Atendida',
