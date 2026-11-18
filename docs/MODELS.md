@@ -6,13 +6,15 @@ Edite as receitas em [districtParts.ts](../src/render/districtParts.ts) e as cor
 
 Os grupos de geometria têm funções distintas. A base recebe sombra e a estrutura projeta sombra. As janelas usam emissão separada para refletir atendimento e tensão inválida. Ao adicionar uma variação, confira o modelo energizado, desligado e incompatível. Veja a [direção de arte](ART.md).
 
-## GLB do avatar e protótipos históricos
+## Eletricista
 
-- **public/models/player.glb** é o modelo opcional do personagem em terceira pessoa. O [carregador](../src/render/GltfOr.tsx) ajusta a dimensão horizontal e apoia a base no chão. Use [modelOverrides.ts](../src/render/modelOverrides.ts) para corrigir escala, rotação ou altura.
-- Os GLBs de prédios, equipamentos e estradas em **public/models** são referências de autoria preservadas. Trocar um desses arquivos por outro não altera a maquete procedural.
-- Exporte em glTF 2.0 binário. Para uso offline sem depender de decoder Draco externo, use um GLB sem Draco. Confira dimensões, materiais, base e posição no navegador.
+O [avatar](../src/render/Avatar.tsx) tem cerca de duas unidades de altura. O [ciclo de passada](../src/render/gait.ts) avança com o deslocamento real. Durante o apoio, as juntas do quadril e joelho mantêm o pé no ponto de contato. Confira partida, parada, corrida, marcha lateral e aproximação de paredes ao alterar o ciclo.
 
-É possível regenerar o avatar ou gerar equipamentos de referência com Blender em modo batch. Use uma pasta de saída separada para revisar o resultado antes de substituir um modelo.
+![Eletricista caminhando em direção a uma casa](screenshots/personagem.png)
+
+## Protótipos GLB
+
+Os GLBs em **public/models** são referências de autoria, incluindo **player.glb**. A maquete e o eletricista jogável são definidos no código. Gere os protótipos em uma pasta separada para conferir escala, materiais e posição.
 
 ~~~sh
 blender -b -P tools/blender/character.py -- arte-exportada

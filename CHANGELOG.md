@@ -4,6 +4,11 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); 
 
 ## [Não lançado]
 
+### Eletricista e escala da cidade
+
+- Eletricista articulado com caminhada e corrida ligadas ao deslocamento, apoio dos pés, balanço de braços e câmera de terceira pessoa mais próxima.
+- Construções 14% mais altas e 4% mais largas e profundas. Colisão de caminhada e câmera acompanha os limites visuais. Cabos e rótulos acompanham a nova altura.
+
 ### Maquete urbana e campanha contínua
 
 - Maquete com fachadas e equipamentos procedurais, iluminação dia/noite, janelas ligadas ao atendimento e modelos distintos para gás, hídrica e solar. Ruas e decoração usam instâncias, e o compositor ficou restrito ao preset Alta.

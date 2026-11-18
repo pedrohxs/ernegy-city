@@ -93,6 +93,8 @@ export const LEVEL_BONUS = 50000
 export const CHALLENGE_KW = 150
 export const MAX_ZONES = 60 // limite de construções para não estourar solver/render
 export const BUILD_SPACING = 9
+export const PLAYER_WALK_SPEED = 3.6
+export const PLAYER_RUN_SPEED = 6.6
 export const STARTER_NETWORK = {
   generator: { x: 20, z: 10 },
   transformer: { x: 30, z: 10 },

@@ -33,3 +33,4 @@ export const PALETTE = {
 } as const
 
 export const HEALTH = { ok: '#5ed8a8', warn: '#ffc46f', bad: '#f16f68' } as const
+export const DISTRICT_MODEL_SCALE = [1.04, 1.14, 1.04] as const

@@ -11,9 +11,9 @@ import { expansionStep, firstLight } from '../game/firstLight'
 import { getVisualTime } from '../game/visualClock'
 import { strings } from '../i18n/pt-BR'
 import { useGame } from '../store/gameStore'
-import { HEALTH, PALETTE } from './art'
+import { DISTRICT_MODEL_SCALE, HEALTH, PALETTE } from './art'
 import { DistrictModel } from './DistrictModels'
-import { connectionHeight } from './districtParts'
+import { connectionHeight, districtBounds } from './districtParts'
 import { Fire, Sparks } from './Effects'
 import Environment from './Environment'
 import Player from './Player'
@@ -116,7 +116,7 @@ const NodeView = memo(function NodeView({ id, x, z }: { id: number; x: number; z
   }}>
     <DistrictModel node={node} powered={state.powered} mismatch={state.mismatch} failed={state.failed} />
     {color && !state.photo && <Ring color={color} size={6.9} />}
-    {label && !state.photo && <MapLabel y={Math.max(8, connectionHeight(node) + 3.5)} color={color ?? PALETTE.marker}>{label}</MapLabel>}
+    {label && !state.photo && <MapLabel y={districtBounds(node).max.y + 1.45} color={color ?? PALETTE.marker}>{label}</MapLabel>}
   </group>
 })
 
@@ -132,7 +132,10 @@ function GuideMarkers() {
     const from = s.nodes.find(n => n.id === step.from)
     const to = s.nodes.find(n => n.id === step.to)
     if (!from || !to || (s.pending !== null && s.pending !== from.id)) return null
-    return { kind: 'link' as const, fromX: from.x, fromZ: from.z, toX: to.x, toZ: to.z, showSource: s.pending === null }
+    return {
+      kind: 'link' as const, fromX: from.x, fromZ: from.z, toX: to.x, toZ: to.z, showSource: s.pending === null,
+      fromY: districtBounds(from).max.y + 1.1, toY: districtBounds(to).max.y + 1.1,
+    }
   }))
   if (!marker) return null
   if (marker.kind === 'lot') return <group position={[marker.x, 0, marker.z]}>
@@ -142,11 +145,11 @@ function GuideMarkers() {
   return <>
     {marker.showSource && <group position={[marker.fromX, 0, marker.fromZ]}>
       <Ring color={PALETTE.origin} size={6.9} />
-      <MapLabel y={8} color={PALETTE.origin}>{strings.guide.from}</MapLabel>
+      <MapLabel y={marker.fromY} color={PALETTE.origin}>{strings.guide.from}</MapLabel>
     </group>}
     <group position={[marker.toX, 0, marker.toZ]}>
       <Ring color={PALETTE.marker} size={6.9} />
-      <MapLabel y={8} color={PALETTE.marker}>{strings.guide.to}</MapLabel>
+      <MapLabel y={marker.toY} color={PALETTE.marker}>{strings.guide.to}</MapLabel>
     </group>
   </>
 }
@@ -196,7 +199,7 @@ function GroundLayer() {
     {placing && <gridHelper args={[400, 40, '#788c7a', '#7d917d']} position={[0, 0.102, 0]} raycast={noRaycast} />}
     {placing && hover && <group position={[hover.x, 0, hover.z]}>
       <Ring color={valid ? PALETTE.marker : HEALTH.bad} size={6.1} filled />
-      <mesh position={[0, 1.8, 0]} raycast={noRaycast}>
+      <mesh position={[0, 1.8 * DISTRICT_MODEL_SCALE[1], 0]} scale={DISTRICT_MODEL_SCALE} raycast={noRaycast}>
         <boxGeometry args={[tool === 'trafo' ? 5.1 : 7, genType === 'solar' && tool === 'gen' ? 2.5 : 3.5, 6]} />
         <meshBasicMaterial color={valid ? PALETTE.marker : HEALTH.bad} wireframe transparent opacity={0.65} />
       </mesh>

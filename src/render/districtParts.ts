@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import type { GNode } from '../electrical/engine'
-import { PALETTE } from './art'
+import { DISTRICT_MODEL_SCALE, PALETTE } from './art'
 
 const boxGeometry = new THREE.BoxGeometry()
 const tubeGeometry = new THREE.CylinderGeometry(0.5, 0.5, 1, 10)
@@ -162,12 +162,31 @@ const equipment = Object.fromEntries(Object.entries(powerModels).map(([name, par
 const heights = { 'gen-gas': 4.65, 'gen-hidro': 3.55, 'gen-solar': 2.2, trafo: 4, sub: 4.55, casa: 3.45, predio: 7.3, hospital: 5.8 }
 const modelKey = (node: GNode) => node.kind === 'zone' ? node.zoneType ?? (node.volt === 110 ? 'casa' : 'predio') : node.kind === 'gen' ? `gen-${node.genType ?? 'gas'}` as const : node.kind
 
-export const connectionHeight = (node: GNode) => heights[modelKey(node)]
+export const connectionHeight = (node: GNode) => heights[modelKey(node)] * DISTRICT_MODEL_SCALE[1]
 
 export function districtParts(node: GNode) {
   const key = modelKey(node)
   if (key === 'casa') return homes[(node.id - 1 + homes.length) % homes.length] ?? homes[0]
   return key === 'predio' ? tall : key === 'hospital' ? clinic : equipment[key]
+}
+
+const modelBounds = new WeakMap<ReturnType<typeof batches>, THREE.Box3>()
+
+export function districtBounds(node: GNode): THREE.Box3 {
+  const parts = districtParts(node)
+  const cached = modelBounds.get(parts)
+  if (cached) return cached
+  const bounds = new THREE.Box3()
+  for (const { geometry } of parts) {
+    if (!geometry) continue
+    geometry.computeBoundingBox()
+    if (geometry.boundingBox) bounds.union(geometry.boundingBox)
+  }
+  const scale = new THREE.Vector3(...DISTRICT_MODEL_SCALE)
+  bounds.min.multiply(scale)
+  bounds.max.multiply(scale)
+  modelBounds.set(parts, bounds)
+  return bounds
 }
 
 export function districtMaterial(finish: Batch, powered: boolean, mismatch: boolean, failed: boolean) {

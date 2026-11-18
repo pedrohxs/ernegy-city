@@ -5,6 +5,8 @@ O bairro é uma maquete urbana. Use asfaltos e vegetação dessaturados e manten
 ## Modelos e iluminação
 
 - As casas têm volumes baixos, telhados e janelas variadas. O prédio é escalonado. O hospital tem marquise e sinalização frontal.
+- A escala das construções é de 1,04 nos eixos horizontais e 1,14 na altura. As dimensões resultantes orientam colisão, pontos de cabo e posicionamento dos rótulos.
+- O eletricista mede cerca de duas unidades. Em terceira pessoa, a câmera se aproxima o suficiente para ler o uniforme e a passada junto às portas das casas.
 - Equipamentos de gás, hídrica e solar se distinguem por chaminés, conjunto de turbinas e painéis, respectivamente. O transformador tem isoladores e radiadores, e a subestação tem vários pontos de distribuição.
 - As peças da cidade são definidas em [districtParts.ts](../src/render/districtParts.ts). Estrutura, base e janelas usam lotes de geometria compartilhados. Estrutura e base têm cores por vértice. As janelas têm materiais próprios para o estado elétrico.
 - Fundo e névoa acompanham o ciclo de dia e noite. A luz das janelas cresce ao anoitecer apenas nos imóveis atendidos. Um dia de jogo equivale a 600 s de simulação e começa às 08:00. A simulação determina a disponibilidade solar.

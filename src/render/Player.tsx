@@ -1,134 +1,181 @@
 import { useEffect, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
-import { useGame } from '../store/gameStore'
-import { GNode } from '../electrical/engine'
-import GltfOr from './GltfOr'
+import { PLAYER_RUN_SPEED, PLAYER_WALK_SPEED } from '../data/balance'
+import type { GNode } from '../electrical/engine'
+import { useGame, type S } from '../store/gameStore'
+import Avatar from './Avatar'
+import { districtBounds } from './districtParts'
+import { strideLength, type AvatarMotion } from './gait'
 
-const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v))
-const damp = (a: number, b: number, lambda: number, dt: number) => THREE.MathUtils.damp(a, b, lambda, dt)
+const ground = 0.08
+const bodyRadius = 0.37
+const eyeHeight = 1.67
+const cameraDistance = 6.8
+const cameraSide = 1.2
+const { clamp, damp } = THREE.MathUtils
 
-// Colisão de câmera: encurta o vetor foco→câmera se ele cruzar uma construção.
-function clampCamera(from: THREE.Vector3, to: THREE.Vector3, nodes: GNode[]): THREE.Vector3 {
-  const dir = to.clone().sub(from); const dist = dir.length()
-  if (dist < 0.01) return to
-  dir.divideScalar(dist)
-  let maxT = dist
-  for (const n of nodes) {
-    const r = n.kind === 'gen' ? 8 : 7
-    const c = new THREE.Vector3(n.x, n.kind === 'zone' ? (n.volt === 110 ? 4 : 8) : 3, n.z)
-    const t = clamp(c.clone().sub(from).dot(dir), 0, dist)
-    const p = from.clone().addScaledVector(dir, t)
-    if (p.distanceTo(c) < r) maxT = Math.min(maxT, Math.max(2.5, t - 1.5))
+const canWalk = (s: S) =>
+  s.screen === 'game' && s.view !== 'orbit' && !s.photo && !s.overlay && !s.paused && !s.report && !s.levelResult
+
+// A proteção segue a base visível de cada construção, inclusive nos lotes mais próximos.
+function avoidBuilding(position: THREE.Vector3, nodes: GNode[]) {
+  for (const node of nodes) {
+    const { min, max } = districtBounds(node)
+    const left = node.x + min.x - bodyRadius, right = node.x + max.x + bodyRadius
+    const back = node.z + min.z - bodyRadius, front = node.z + max.z + bodyRadius
+    if (position.x <= left || position.x >= right || position.z <= back || position.z >= front) continue
+    const dx = Math.min(position.x - left, right - position.x)
+    const dz = Math.min(position.z - back, front - position.z)
+    if (dx < dz) position.x = position.x - left < right - position.x ? left : right
+    else position.z = position.z - back < front - position.z ? back : front
   }
-  return from.clone().addScaledVector(dir, maxT)
+  position.x = clamp(position.x, -195, 195)
+  position.z = clamp(position.z, -195, 195)
+}
+
+const cameraRay = new THREE.Ray()
+const cameraBounds = new THREE.Box3()
+const intersection = new THREE.Vector3()
+function shortenCamera(focus: THREE.Vector3, position: THREE.Vector3, nodes: GNode[], out: THREE.Vector3) {
+  cameraRay.origin.copy(focus)
+  const distance = cameraRay.direction.subVectors(position, focus).length()
+  if (distance < 1e-3) return out.copy(position)
+  cameraRay.direction.divideScalar(distance)
+  let available = distance
+  for (const node of nodes) {
+    const { min, max } = districtBounds(node)
+    cameraBounds.min.set(node.x + min.x, min.y, node.z + min.z)
+    cameraBounds.max.set(node.x + max.x, max.y, node.z + max.z)
+    if (!cameraRay.intersectBox(cameraBounds, intersection)) continue
+    available = Math.min(available, Math.max(0.26, focus.distanceTo(intersection) - 0.32))
+  }
+  return cameraRay.at(available, out)
 }
 
 export default function Player() {
   const view = useGame(s => s.view)
   const photo = useGame(s => s.photo)
-  const overlay = useGame(s => s.overlay)
-  const paused = useGame(s => s.paused)
-  const report = useGame(s => s.report)
-  const levelResult = useGame(s => s.levelResult)
-  const { camera } = useThree()
-  const grp = useRef<THREE.Group>(null), legs = useRef<(THREE.Group | null)[]>([])
-  const st = useRef({ x: 0, z: 40, yaw: 0, pitch: 0.3, walk: 0, vx: 0, vz: 0, init: false })
-  const vel = useRef(new THREE.Vector3())
-  const camPos = useRef(new THREE.Vector3())
-  const look = useRef(new THREE.Vector3())
-  const keys = useRef<Record<string, boolean>>({})
+  const session = useGame(s => s.session)
+  const enabled = useGame(canWalk)
+  const camera = useThree(s => s.camera)
+  const avatar = useRef<THREE.Group>(null)
+  const motion = useRef<AvatarMotion>({ phase: 0, weight: 0, run: 0 })
+  const input = useRef<Record<string, boolean>>({})
+  const player = useRef({
+    position: new THREE.Vector3(10, ground, 32), velocity: new THREE.Vector3(),
+    cameraPosition: new THREE.Vector3(), focus: new THREE.Vector3(), desired: new THREE.Vector3(),
+    yaw: 0, pitch: 0.3, heading: 0, initialized: false,
+  })
+
   useEffect(() => {
-    const ok = (e: Event) => !(e.target instanceof HTMLSelectElement || e.target instanceof HTMLInputElement)
-    const kd = (e: KeyboardEvent) => { if (ok(e)) keys.current[e.code] = true }
-    const ku = (e: KeyboardEvent) => { keys.current[e.code] = false }
-    const mm = (e: PointerEvent) => {
-      const g = useGame.getState()
-      if ((e.buttons & 1) && g.screen === 'game' && g.view !== 'orbit' && !g.photo) {
-        const sens = 0.005 * g.sensitivity
-        st.current.yaw -= e.movementX * sens; st.current.pitch = clamp(st.current.pitch + e.movementY * sens * 0.8, -0.6, 1.1)
-      }
+    function clear() {
+      input.current = {}
+      player.current.velocity.set(0, 0, 0)
     }
-    // Se a janela perde o foco, o keyup pode nunca chegar: zera tudo.
-    const stop = () => { keys.current = {}; vel.current.set(0, 0, 0) }
-    const onVisibility = () => { if (document.visibilityState === 'hidden') stop() }
-    window.addEventListener('keydown', kd); window.addEventListener('keyup', ku); window.addEventListener('pointermove', mm)
-    window.addEventListener('blur', stop); document.addEventListener('visibilitychange', onVisibility)
+    function keydown(e: KeyboardEvent) {
+      if (e.target instanceof HTMLElement && e.target.closest('input, textarea, select, button, summary')) return
+      if (canWalk(useGame.getState())) input.current[e.code] = true
+    }
+    function keyup(e: KeyboardEvent) { delete input.current[e.code] }
+    function drag(e: PointerEvent) {
+      if (!(e.buttons & 1) || !(e.target instanceof HTMLCanvasElement) || !canWalk(useGame.getState())) return
+      const s = player.current
+      const sensitivity = 0.005 * useGame.getState().sensitivity
+      s.yaw -= e.movementX * sensitivity
+      s.pitch = clamp(s.pitch + e.movementY * sensitivity * 0.8, -0.55, 1)
+    }
+    function visibility() { if (document.hidden) clear() }
+    window.addEventListener('keydown', keydown)
+    window.addEventListener('keyup', keyup)
+    window.addEventListener('pointermove', drag)
+    window.addEventListener('blur', clear)
+    document.addEventListener('visibilitychange', visibility)
     return () => {
-      window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku); window.removeEventListener('pointermove', mm)
-      window.removeEventListener('blur', stop); document.removeEventListener('visibilitychange', onVisibility)
+      window.removeEventListener('keydown', keydown)
+      window.removeEventListener('keyup', keyup)
+      window.removeEventListener('pointermove', drag)
+      window.removeEventListener('blur', clear)
+      document.removeEventListener('visibilitychange', visibility)
     }
   }, [])
-  useEffect(() => { st.current.init = false }, [view, photo])
-  // Trocar de câmera, abrir menu/pausa ou receber um relatório cancela o movimento.
-  useEffect(() => { keys.current = {}; vel.current.set(0, 0, 0) }, [view, photo, overlay, paused, report, levelResult])
-  useFrame((_, dt) => {
-    const s3 = useGame.getState()
-    const v = s3.view
-    if (s3.screen !== 'game' || v === 'orbit' || s3.photo || s3.overlay !== null || s3.paused || s3.report !== null || s3.levelResult) {
-      vel.current.set(0, 0, 0)
-      return
+
+  useEffect(() => {
+    const s = player.current
+    s.position.set(10, ground, 32)
+    avoidBuilding(s.position, useGame.getState().nodes)
+    s.yaw = 0; s.pitch = 0.3; s.heading = 0; s.initialized = false
+  }, [session])
+
+  useEffect(() => {
+    input.current = {}
+    player.current.velocity.set(0, 0, 0)
+    motion.current.weight = 0
+    motion.current.run = 0
+  }, [view, enabled])
+
+  useEffect(() => { player.current.initialized = false }, [view, photo])
+
+  useFrame((_, delta) => {
+    const game = useGame.getState()
+    if (!canWalk(game)) return
+
+    const dt = Math.min(delta, 0.05)
+    if (dt <= 0) return
+    const s = player.current, keys = input.current, gait = motion.current
+    if (keys.ArrowLeft || keys.KeyQ) s.yaw += 1.8 * dt
+    if (keys.ArrowRight || keys.KeyE) s.yaw -= 1.8 * dt
+
+    const forward = Number(!!(keys.KeyW || keys.ArrowUp)) - Number(!!(keys.KeyS || keys.ArrowDown))
+    const sideways = Number(!!keys.KeyD) - Number(!!keys.KeyA)
+    const sin = Math.sin(s.yaw), cos = Math.cos(s.yaw)
+    const limit = keys.ShiftLeft || keys.ShiftRight ? PLAYER_RUN_SPEED : PLAYER_WALK_SPEED
+    const speed = limit / Math.max(1, Math.hypot(forward, sideways))
+    s.velocity.x = damp(s.velocity.x, (sideways * cos - forward * sin) * speed, 14, dt)
+    s.velocity.z = damp(s.velocity.z, (-sideways * sin - forward * cos) * speed, 14, dt)
+    const { x: startX, z: startZ } = s.position
+    s.position.addScaledVector(s.velocity, dt)
+    avoidBuilding(s.position, game.nodes)
+    const dx = s.position.x - startX, dz = s.position.z - startZ
+    const distance = Math.min(Math.hypot(dx, dz), s.velocity.length() * dt)
+    const realSpeed = distance / dt
+
+    gait.run = damp(gait.run, clamp((realSpeed - PLAYER_WALK_SPEED) / (PLAYER_RUN_SPEED - PLAYER_WALK_SPEED), 0, 1), 9, dt)
+    gait.weight = damp(gait.weight, clamp(realSpeed / PLAYER_WALK_SPEED, 0, 1), 15, dt)
+    gait.phase = (gait.phase + distance / strideLength(gait.run)) % 1
+    if (realSpeed > 0.12) {
+      const angle = Math.atan2(-dx, -dz) - s.heading
+      s.heading += Math.atan2(Math.sin(angle), Math.cos(angle)) * (1 - Math.exp(-14 * dt))
     }
-    const s = st.current, k = keys.current
-    if (k.ArrowLeft || k.KeyQ) s.yaw += 1.8 * dt
-    if (k.ArrowRight || k.KeyE) s.yaw -= 1.8 * dt
-    const fx = -Math.sin(s.yaw), fz = -Math.cos(s.yaw)
-    let mx = 0, mz = 0
-    if (k.KeyW || k.ArrowUp) { mx += fx; mz += fz }
-    if (k.KeyS || k.ArrowDown) { mx -= fx; mz -= fz }
-    if (k.KeyD) { mx -= fz; mz += fx }
-    if (k.KeyA) { mx += fz; mz -= fx }
-    const moving = mx !== 0 || mz !== 0, run = k.ShiftLeft || k.ShiftRight
-    const sp = run ? 22 : 10
-    const l = Math.hypot(mx, mz)
-    const tx = moving ? (mx / l) * sp : 0, tz = moving ? (mz / l) * sp : 0
-    vel.current.x = damp(vel.current.x, tx, 10, dt); vel.current.z = damp(vel.current.z, tz, 10, dt)
-    s.x += vel.current.x * dt; s.z += vel.current.z * dt
-    if (Math.hypot(vel.current.x, vel.current.z) > 0.5) s.walk += dt * (run ? 14 : 9)
-    for (const n of s3.nodes) {
-      const dx = s.x - n.x, dz = s.z - n.z, d = Math.hypot(dx, dz), r = n.kind === 'zone' ? 6 : 7
-      if (d < r && d > 0) { s.x = n.x + (dx / d) * r; s.z = n.z + (dz / d) * r }
+
+    if (avatar.current) {
+      avatar.current.position.copy(s.position)
+      avatar.current.rotation.y = s.heading
     }
-    s.x = clamp(s.x, -195, 195); s.z = clamp(s.z, -195, 195)
-    if (grp.current) {
-      const bob = moving ? Math.abs(Math.sin(s.walk)) * 0.16 : 0
-      grp.current.position.set(s.x, bob, s.z); grp.current.rotation.y = s.yaw; grp.current.visible = v === 'terceira' && !s3.photo
-    }
-    const sw = moving ? Math.sin(s.walk) * 0.8 : 0
-    if (legs.current[0]) legs.current[0].rotation.x = sw
-    if (legs.current[1]) legs.current[1].rotation.x = -sw
-    const focus = new THREE.Vector3(s.x, 2.5, s.z)
-    let desired: THREE.Vector3, lookAt: THREE.Vector3
-    if (v === 'terceira') {
-      const d = 14, cp = Math.cos(s.pitch)
-      desired = new THREE.Vector3(s.x + Math.sin(s.yaw) * d * cp, 3 + Math.sin(s.pitch) * d, s.z + Math.cos(s.yaw) * d * cp)
-      lookAt = focus
+
+    const { x, y, z } = s.position
+    if (game.view === 'terceira') {
+      const pitch = clamp(s.pitch, 0, 0.83)
+      const horizontal = Math.cos(pitch) * cameraDistance
+      s.focus.set(x, y + 1.22, z)
+      s.desired.set(x + sin * horizontal + cos * cameraSide, y + 1.56 + Math.sin(pitch) * cameraDistance, z + cos * horizontal - sin * cameraSide)
     } else {
-      const p = s.pitch - 0.3
-      desired = new THREE.Vector3(s.x, 3.4, s.z)
-      lookAt = new THREE.Vector3(s.x + fx * Math.cos(p) * 10, 3.4 - Math.sin(p) * 10, s.z + fz * Math.cos(p) * 10)
+      const pitch = s.pitch - 0.3
+      s.desired.set(x, y + eyeHeight, z)
+      s.focus.set(x - sin * Math.cos(pitch) * 5, y + eyeHeight - Math.sin(pitch) * 5, z - cos * Math.cos(pitch) * 5)
     }
-    if (!s.init) { camPos.current.copy(camera.position); look.current.copy(lookAt); s.init = true }
-    camPos.current.x = damp(camPos.current.x, desired.x, 8, dt); camPos.current.y = damp(camPos.current.y, desired.y, 8, dt); camPos.current.z = damp(camPos.current.z, desired.z, 8, dt)
-    look.current.x = damp(look.current.x, lookAt.x, 8, dt); look.current.y = damp(look.current.y, lookAt.y, 8, dt); look.current.z = damp(look.current.z, lookAt.z, 8, dt)
-    const safe = clampCamera(focus, camPos.current, s3.nodes)
-    camera.position.copy(safe)
-    camera.lookAt(look.current)
-  })
+    if (!s.initialized) {
+      s.cameraPosition.copy(s.desired)
+      s.initialized = true
+    }
+    s.cameraPosition.lerp(s.desired, 1 - Math.exp(-13 * dt))
+    if (game.view === 'terceira') shortenCamera(s.focus, s.cameraPosition, game.nodes, camera.position)
+    else camera.position.copy(s.cameraPosition)
+    camera.lookAt(s.focus)
+  }, -1)
+
   if (view !== 'terceira' || photo) return null
-  return (
-    <group ref={grp} position={[0, 0, 40]}>
-      <GltfOr name="player" scale={1} fit={2.2}>
-        <mesh position={[0, 2.3, 0]}><boxGeometry args={[1.4, 1.6, 0.8]} /><meshStandardMaterial color="#2563eb" /></mesh>
-        <mesh position={[0, 3.5, 0]}><sphereGeometry args={[0.55]} /><meshStandardMaterial color="#fcd5b0" /></mesh>
-        <mesh position={[-0.95, 2.3, 0]}><boxGeometry args={[0.4, 1.4, 0.5]} /><meshStandardMaterial color="#2563eb" /></mesh>
-        <mesh position={[0.95, 2.3, 0]}><boxGeometry args={[0.4, 1.4, 0.5]} /><meshStandardMaterial color="#2563eb" /></mesh>
-        {[-0.35, 0.35].map((x, i) => (
-          <group key={x} position={[x, 1.5, 0]} ref={el => { legs.current[i] = el }}>
-            <mesh position={[0, -0.75, 0]}><boxGeometry args={[0.55, 1.5, 0.6]} /><meshStandardMaterial color="#1e293b" /></mesh>
-          </group>
-        ))}
-      </GltfOr>
-    </group>
-  )
+  return <group name="walk-mode-avatar" ref={avatar} position={player.current.position} rotation-y={player.current.heading}>
+    <Avatar motion={motion} />
+  </group>
 }
