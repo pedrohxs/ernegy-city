@@ -1,6 +1,7 @@
 // Integração do fluxo principal: construir → simular → falhar → relatório.
 import { beforeEach, describe, expect, it } from 'vitest'
-import { HEALTH_MAX, REFUND, REPAIR_FRACTION, T_AMB } from '../data/balance'
+import { HEALTH_MAX, REFUND, REPAIR_FRACTION, STARTER_NETWORK, T_AMB } from '../data/balance'
+import { expansionStep, firstLight } from '../game/firstLight'
 import { useGame } from './gameStore'
 
 const g = () => useGame.getState()
@@ -11,6 +12,37 @@ beforeEach(() => {
 })
 
 describe('fluxo principal', () => {
+  it('segue o guia até a primeira promoção e mantém a rede durante a expansão', async () => {
+    g().newGame('campanha')
+    expect(g().demand).toBe(60)
+    expect(firstLight(g())).toMatchObject({ kind: 'gen' })
+    g().set({ tool: 'gen' })
+    g().place(STARTER_NETWORK.generator.x, STARTER_NETWORK.generator.z)
+    expect(firstLight(g())).toMatchObject({ kind: 'trafo' })
+    g().set({ tool: 'trafo' })
+    g().place(STARTER_NETWORK.transformer.x, STARTER_NETWORK.transformer.z)
+    for (const kind of ['feeder', 'branch', 'branch', 'branch']) {
+      const action = firstLight(g())
+      if (!action || action.kind !== kind || !('from' in action)) throw new Error(`Passo esperado: ${kind}`)
+      g().set({ tool: 'cabo', area: action.area })
+      g().clickNode(action.from)
+      g().clickNode(action.to)
+    }
+    await step(230, 0.1)
+    expect(g().supplied).toBe(60)
+    expect(g().cables.every(c => c.health > 99)).toBe(true)
+    expect(g().levelResult).toMatchObject({ kind: 'level', level: 1 })
+    const promotionTime = g().time
+    await step(15)
+    expect(g().time).toBe(promotionTime)
+    g().clearLevelResult()
+    await step(200, 0.1)
+    expect(g().nodes.filter(n => n.kind === 'zone')).toHaveLength(4)
+    expect(g().cables).toHaveLength(4)
+    expect(g().demand).toBeGreaterThan(60)
+    const zone = g().nodes.find(n => n.kind === 'zone' && n.id > 3)
+    expect(expansionStep(g())).toMatchObject({ kind: zone?.volt === 110 ? 'expandBranch' : 'expandTrafo', voltage: zone?.volt })
+  })
   it('constrói gerador→trafo→zona, energiza e acumula resultado', async () => {
     g().set({ tool: 'gen', genType: 'gas' }); g().place(0, 0)
     g().set({ tool: 'trafo', tv: 220 }); g().place(0, 40)

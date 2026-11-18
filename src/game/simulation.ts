@@ -56,7 +56,7 @@ export class SimulationLoop {
     const realDt = Math.min(MAX_REAL_DT, Math.max(0, (t - this.last) / 1000))
     this.last = t
     const scale = Math.max(0, this.o.getScale())
-    if (scale > 0) this.acc = Math.min(MAX_ACC, this.acc + realDt * scale)
+    this.acc = scale > 0 ? Math.min(MAX_ACC, this.acc + realDt * scale) : 0
     this.o.onFrame?.(realDt, scale)
     void this.pump()
     this.handle = this.schedule(this.frame)
@@ -67,7 +67,7 @@ export class SimulationLoop {
     this.stepping = true
     try {
       let n = 0
-      while (this.acc >= FIXED_STEP && n < MAX_STEPS_PER_FRAME) {
+      while (this.running && this.o.getScale() > 0 && this.acc >= FIXED_STEP && n < MAX_STEPS_PER_FRAME) {
         this.acc -= FIXED_STEP
         try {
           await this.o.step(FIXED_STEP)

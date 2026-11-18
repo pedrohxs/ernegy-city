@@ -1,40 +1,21 @@
-/* Tokens de design (cor, tipografia, espaçamento, sombra, raio). */
 :root {
-  --color-bg: #0b1220;
-  --color-surface: rgba(10, 16, 28, 0.9);
-  --color-surface-2: rgba(22, 32, 50, 0.94);
-  --color-surface-3: rgba(30, 41, 59, 0.9);
-  --color-border: rgba(148, 163, 184, 0.25);
-  --color-border-strong: rgba(148, 163, 184, 0.5);
-  --color-primary: #facc15;
-  --color-primary-ink: #1a1400;
-  --color-accent: #38bdf8;
-  --color-ok: #22c55e;
-  --color-warn: #f59e0b;
-  --color-bad: #ef4444;
-  --color-text: #e2e8f0;
-  --color-muted: #94a3b8;
-
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 24px;
-  --space-6: 32px;
-
-  --radius-sm: 5px;
-  --radius: 8px;
-  --radius-lg: 14px;
-
-  --font: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --fs-xs: 11px;
-  --fs-sm: 12px;
-  --fs-md: 14px;
-  --fs-lg: 18px;
-  --fs-xl: 30px;
-
-  --shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.35);
+  color-scheme: dark;
+  --color-bg: #1e302d;
+  --color-surface: #192729f5;
+  --color-surface-2: #213234;
+  --color-surface-3: #293e3f;
+  --color-border: #c8ddd32e;
+  --color-border-strong: #bed5c769;
+  --color-primary: #e0f1a1;
+  --color-primary-ink: #25301d;
+  --color-accent: #b2d9e8;
+  --color-ok: #8de2b8;
+  --color-warn: #ffd389;
+  --color-bad: #ff9b90;
+  --color-text: #f0f5ee;
+  --color-muted: #b1c4bb;
+  --shadow: 0 16px 48px #13231f4c;
+  --radius: 12px;
 }
 
 * { box-sizing: border-box; }
@@ -42,8 +23,9 @@ html, body, #root { height: 100%; margin: 0; }
 body {
   background: var(--color-bg);
   color: var(--color-text);
-  font-family: var(--font);
-  font-size: var(--fs-md);
+  font: 400 14px/1.4 system-ui, -apple-system, 'Segoe UI', sans-serif;
   -webkit-font-smoothing: antialiased;
 }
-button, input, select { font-family: inherit; }
+button, input, select { font: inherit; }
+button, select, summary { -webkit-tap-highlight-color: transparent; }
+:where(button, select, input, summary, a):focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; }

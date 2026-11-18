@@ -1,251 +1,285 @@
-import { memo, useEffect, useMemo, useRef, useState } from 'react'
-import { Html } from '@react-three/drei'
-import { useFrame } from '@react-three/fiber'
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Html, OrbitControls } from '@react-three/drei'
+import { useFrame, useThree } from '@react-three/fiber'
+import { useShallow } from 'zustand/shallow'
 import * as THREE from 'three'
+import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
+import { makeNode } from '../electrical/engine'
+import { buildSeedCity } from '../game/city'
+import { cableQuote, constructionCost, lotOccupied } from '../game/construction'
+import { expansionStep, firstLight } from '../game/firstLight'
+import { getVisualTime } from '../game/visualClock'
+import { strings } from '../i18n/pt-BR'
 import { useGame } from '../store/gameStore'
-import { COOL, GENS, HEAT, PRICE, T_AMB, T_MAX, ZoneType } from '../data/balance'
-import { hourOf, nightFactor } from '../game/clock'
-import { GNode, Kind, jouleLoss, resistance } from '../electrical/engine'
-import { HEALTH, PALETTE } from './art'
-import GltfOr from './GltfOr'
+import { DISTRICT_MODEL_SCALE, HEALTH, PALETTE } from './art'
+import { DistrictModel } from './DistrictModels'
+import { connectionHeight, districtBounds } from './districtParts'
+import { Fire, Sparks } from './Effects'
 import Environment from './Environment'
 import Player from './Player'
-import { Fire, Flow, Sparks, FlowState } from './Effects'
 
 const CELL = 10
-const MIN_DIST = 7
 const snap = (v: number) => Math.round(v / CELL) * CELL
-const FAILED = new THREE.Color('#3a1414')
-const hotColor = (out: THREE.Color, t: number) => out.setHSL((1 - Math.min(1, Math.max(0, (t - T_AMB) / (T_MAX - T_AMB)))) * 0.33, 1, 0.5)
-
-let tex: THREE.CanvasTexture | null = null
-function winTex() {
-  if (!tex) {
-    const c = document.createElement('canvas'); c.width = 64; c.height = 128
-    const x = c.getContext('2d')!; x.fillStyle = '#000'; x.fillRect(0, 0, 64, 128); x.fillStyle = '#fff'
-    for (let i = 0; i < 4; i++) for (let j = 0; j < 8; j++) x.fillRect(6 + i * 15, 6 + j * 15, 9, 9)
-    tex = new THREE.CanvasTexture(c)
-  }
-  return tex
-}
-function curveOf(ax: number, az: number, bx: number, bz: number) {
-  const p0 = new THREE.Vector3(ax, 6, az), p2 = new THREE.Vector3(bx, 6, bz)
-  const p1 = p0.clone().lerp(p2, 0.5); p1.y -= Math.min(p0.distanceTo(p2) * 0.06 + 0.5, 8)
-  return new THREE.QuadraticBezierCurve3(p0, p1, p2)
+const isBuilding = (tool: string) => tool === 'gen' || tool === 'sub' || tool === 'trafo' || tool === 'zone'
+const noRaycast = () => {}
+const badgeStyle = {
+  color: '#eff7ed', background: '#202c31', border: '1px solid #6e8576', padding: '2px 6px',
+  pointerEvents: 'none' as const, borderRadius: 5, whiteSpace: 'nowrap' as const, fontSize: 11, fontWeight: 650,
 }
 
-const NodeModel = memo(function NodeModel({ id, kind, volt, zoneType }: { id: number; kind: Kind; volt: number; zoneType?: ZoneType }) {
-  const failed = useGame(s => s.nodes.find(n => n.id === id)?.failed ?? false)
-  const on = useGame(s => s.powered.includes(id))
-  const bad = useGame(s => s.mismatch.includes(id))
-  const near = useGame(s => { const n = s.nodes.find(n => n.id === id); return !!n && n.cap > 0 && n.load > n.cap * 0.85 })
-  const grp = useRef<THREE.Group>(null)
-  useFrame((_, dt) => { if (grp.current && grp.current.scale.x < 1) grp.current.scale.setScalar(Math.min(1, grp.current.scale.x + dt * 4)) })
-  const base = failed ? PALETTE.dead : bad ? PALETTE.hazardPurple : near ? HEALTH.warn : kind === 'zone' ? (volt === 110 ? PALETTE.zone110 : PALETTE.zone220) : kind === 'sub' ? PALETTE.building : PALETTE.metal
-  const halo = near || bad
-  return (
-    <group ref={grp} scale={0.01}>
-      {kind === 'zone' && <ZoneBody type={zoneType ?? (volt === 110 ? 'casa' : 'predio')} dead={failed} bad={bad} on={on} />}
-      {kind === 'gen' && <>
-        <mesh position={[0, 3, 0]} castShadow receiveShadow><boxGeometry args={[10, 6, 8]} /><meshStandardMaterial color={failed ? PALETTE.dead : PALETTE.metal} metalness={0.4} roughness={0.5} /></mesh>
-        {[-3, 3].map(x => <mesh key={x} position={[x, 11, 0]} castShadow><cylinderGeometry args={[1, 1.4, 10]} /><meshStandardMaterial color={PALETTE.metalDark} /></mesh>)}
-        <mesh position={[0, 6.3, 0]}><boxGeometry args={[10.4, 0.6, 8.4]} /><meshStandardMaterial color={PALETTE.lamp} emissive={PALETTE.lamp} emissiveIntensity={failed ? 0 : 0.6} /></mesh>
-      </>}
-      {(kind === 'sub' || kind === 'trafo') && <>
-        {kind === 'sub'
-          ? <mesh position={[0, 1.5, 0]} castShadow receiveShadow><boxGeometry args={[10, 3, 10]} /><meshStandardMaterial color={base} metalness={0.3} roughness={0.6} /></mesh>
-          : <mesh position={[0, 3, 0]} castShadow><cylinderGeometry args={[3, 3, 6]} /><meshStandardMaterial color={base} /></mesh>}
-        {[-1.8, 0, 1.8].map(x => <mesh key={x} position={[x, kind === 'sub' ? 4.5 : 7.5, 0]} castShadow><cylinderGeometry args={[0.4, 0.6, 3]} /><meshStandardMaterial color={PALETTE.insulator} /></mesh>)}
-      </>}
-      {halo && <mesh position={[0, kind === 'zone' ? (zoneType === 'casa' ? 4 : zoneType === 'hospital' ? 7 : 9) : 5, 0]}><sphereGeometry args={[6, 16, 12]} /><meshBasicMaterial color={failed ? HEALTH.bad : near ? HEALTH.warn : HEALTH.bad} transparent opacity={0.12} /></mesh>}
-    </group>
-  )
-})
-
-// Material das janelas: esmaece com o anoitecer sem re-renderizar o componente.
-function WindowMat({ on, color, tint = '#ffd27a', base = 0.25, gain = 1.55, roughness = 0.7 }: { on: boolean; color: string; tint?: string; base?: number; gain?: number; roughness?: number }) {
-  const ref = useRef<THREE.MeshStandardMaterial>(null)
-  useFrame(() => {
-    if (!ref.current) return
-    const nf = nightFactor(hourOf(useGame.getState().time))
-    ref.current.emissiveIntensity = on ? base + nf * gain : 0
-  })
-  return <meshStandardMaterial ref={ref} color={color} emissive={tint} emissiveMap={winTex()} roughness={roughness} />
+function cableCurve(ax: number, ay: number, az: number, bx: number, by: number, bz: number) {
+  const a = new THREE.Vector3(ax, ay, az)
+  const b = new THREE.Vector3(bx, by, bz)
+  const control = a.clone().lerp(b, 0.5)
+  control.y = Math.max(0.8, control.y - Math.min(a.distanceTo(b) * 0.062, 4.5))
+  return new THREE.QuadraticBezierCurve3(a, control, b)
 }
 
-function ZoneBody({ type, dead, bad, on }: { type: ZoneType; dead: boolean; bad: boolean; on: boolean }) {
-  const wall = dead ? PALETTE.dead : bad ? PALETTE.hazardPurple : type === 'hospital' ? '#e8eef5' : PALETTE.building
-  if (type === 'casa') return <>
-    <mesh position={[0, 2.5, 0]} castShadow receiveShadow><boxGeometry args={[6, 5, 6]} /><WindowMat on={on} color={wall} roughness={0.75} /></mesh>
-    <mesh position={[0, 5.7, 0]} rotation={[0, Math.PI / 4, 0]} castShadow><coneGeometry args={[4.6, 3, 4]} /><meshStandardMaterial color={PALETTE.buildingRoof} flatShading /></mesh>
-  </>
-  if (type === 'hospital') return <>
-    <mesh position={[0, 5, 0]} castShadow receiveShadow><boxGeometry args={[8, 10, 8]} /><WindowMat on={on} color={wall} tint="#dbeafe" base={0.15} gain={0.35} roughness={0.6} /></mesh>
-    <mesh position={[0, 10.2, 0]} castShadow><boxGeometry args={[8.4, 0.6, 8.4]} /><meshStandardMaterial color="#cbd5e1" /></mesh>
-    <mesh position={[0, 11.5, 0]}><boxGeometry args={[2.6, 0.7, 0.4]} /><meshStandardMaterial color="#ef4444" emissive="#ef4444" emissiveIntensity={1.4} /></mesh>
-    <mesh position={[0, 11.5, 0]}><boxGeometry args={[0.7, 2.6, 0.4]} /><meshStandardMaterial color="#ef4444" emissive="#ef4444" emissiveIntensity={1.4} /></mesh>
-  </>
-  return <>
-    <mesh position={[0, 8, 0]} castShadow receiveShadow><boxGeometry args={[7, 16, 7]} /><WindowMat on={on} color={wall} /></mesh>
-    <mesh position={[0, 16.4, 0]} castShadow><boxGeometry args={[7.4, 0.8, 7.4]} /><meshStandardMaterial color={PALETTE.buildingRoof} /></mesh>
-  </>
-}
-
-const CableView = memo(function CableView({ id, ax, az, bx, bz }: { id: number; ax: number; az: number; bx: number; bz: number }) {
-  const set = useGame(s => s.set)
-  const failed = useGame(s => s.cables.find(c => c.id === id)?.failed ?? false)
-  const hot = useGame(s => { const c = s.cables.find(c => c.id === id); return !!c && !c.failed && c.temp > 75 })
-  const meshRef = useRef<THREE.Mesh>(null)
-  const flow = useRef<FlowState>({ speed: 0, color: new THREE.Color('#ffffff'), visible: false })
-  const target = useRef(new THREE.Color())
-  const curve = useMemo(() => curveOf(ax, az, bx, bz), [ax, az, bx, bz])
-  // Geometria própria do cabo (tubo), recriada só quando as pontas mudam (não a cada tick).
-  const geometry = useMemo(() => new THREE.TubeGeometry(curve, 20, 0.35, 6, false), [curve])
+function Tube({ curve, radius, color }: { curve: THREE.QuadraticBezierCurve3; radius: number; color: string }) {
+  const geometry = useMemo(() => new THREE.TubeGeometry(curve, 16, radius, 5, false), [curve, radius])
   useEffect(() => () => geometry.dispose(), [geometry])
+  return <mesh geometry={geometry}>
+    <meshStandardMaterial color={color} roughness={0.8} />
+  </mesh>
+}
+
+function CablePulse({ curve }: { curve: THREE.QuadraticBezierCurve3 }) {
+  const dot = useRef<THREE.Mesh>(null)
+  useFrame(() => { if (dot.current) curve.getPoint((getVisualTime() * 0.6) % 1, dot.current.position) })
+  return <mesh ref={dot} raycast={noRaycast}><sphereGeometry args={[0.36, 8, 6]} /><meshBasicMaterial color={PALETTE.marker} /></mesh>
+}
+
+const CableView = memo(function CableView({ id, ax, ay, az, bx, by, bz }: { id: number; ax: number; ay: number; az: number; bx: number; by: number; bz: number }) {
+  const { failed, hot, live, selected, canSelect, photo, heatFault } = useGame(useShallow(s => {
+    const c = s.cables.find(c => c.id === id)
+    return {
+      failed: !!c?.failed, heatFault: c?.fault === 'heat', hot: !!c && c.temp > 75,
+      live: !!c && c.current > 0.05, selected: s.sel?.type === 'cable' && s.sel.id === id,
+      canSelect: s.view === 'orbit' && !s.photo && s.tool === 'sel', photo: s.photo,
+    }
+  }))
+  const curve = useMemo(() => cableCurve(ax, ay, az, bx, by, bz), [ax, ay, az, bx, by, bz])
   const mid = useMemo(() => curve.getPoint(0.5), [curve])
-  useFrame((_, dt) => {
-    const c = useGame.getState().cables.find(c => c.id === id)
-    const mat = meshRef.current?.material as THREE.MeshStandardMaterial | undefined
-    if (!c || !mat) return
-    if (c.failed) target.current.copy(FAILED)
-    else hotColor(target.current, c.temp)
-    mat.color.lerp(target.current, Math.min(1, dt * 6))
-    const heat = Math.min(1, Math.max(0, (c.temp - 60) / 35))
-    mat.emissive.copy(mat.color).multiplyScalar(heat * 0.8)
-    mat.emissiveIntensity = heat
-    flow.current.color.copy(mat.color)
-    flow.current.speed = 0.1 + Math.min(1, (c.current * c.volt) / 50000) * 0.6
-    flow.current.visible = !c.failed && c.current > 0
-  })
-  return (
-    <group>
-      <mesh ref={meshRef} geometry={geometry} castShadow onClick={e => { e.stopPropagation(); set({ sel: { type: 'cable', id } }) }}>
-        <meshStandardMaterial color={hotColor(new THREE.Color(), 25)} metalness={0.5} roughness={0.4} />
-      </mesh>
-      {!failed && <Flow curve={curve} state={flow} />}
-      {!failed && hot && <Sparks x={mid.x} y={mid.y} z={mid.z} />}
-      {failed && <Fire x={mid.x} y={mid.y} z={mid.z} />}
-    </group>
-  )
+  const color = failed ? PALETTE.failedWire : hot ? HEALTH.warn : selected && !photo ? PALETTE.marker : live ? PALETTE.live : PALETTE.wire
+  return <group onClick={canSelect ? e => { if (e.delta < 5) { e.stopPropagation(); useGame.getState().set({ sel: { type: 'cable', id } }) } } : undefined}>
+    <Tube curve={curve} radius={selected && !photo ? 0.26 : 0.18} color={color} />
+    {selected && live && !hot && !failed && !photo && <CablePulse curve={curve} />}
+    {hot && !failed && <Sparks x={mid.x} y={mid.y} z={mid.z} />}
+    {failed && heatFault && <Fire x={mid.x} y={mid.y} z={mid.z} />}
+    {failed && !photo && <Html position={[mid.x, mid.y + 1.2, mid.z]} center zIndexRange={[5, 1]} style={{ pointerEvents: 'none' }}>
+      <span style={{ ...badgeStyle, borderColor: HEALTH.bad }}>{strings.report.cableFailed} · C-{id}</span>
+    </Html>}
+  </group>
 })
 
-// Modelos por tipo de zona (caminhos relativos a /models) e tamanho-alvo.
-// Casas: kit Kenney (casas-buldings). Prédio/hospital: pack anterior.
-const ZONE_MODELS: Partial<Record<ZoneType, string[]>> = {
-  // casas do pack anterior (casa3 é alta demais; fica de fora)
-  casa: ['casa', 'casa2', 'casa4', 'casa5'],
-  predio: ['predio', 'predio2'], // predio3 = Bank (templo clássico) — fora da cidade moderna
-  hospital: ['hospital'],
-}
-const ZONE_FIT: Partial<Record<ZoneType, number>> = { casa: 10, predio: 11, hospital: 12 }
-const modelNames = (n: GNode): string | string[] => {
-  if (n.kind !== 'zone') return n.kind
-  const zt = n.zoneType ?? 'predio'
-  const list = ZONE_MODELS[zt] ?? [zt]
-  const pick = list[n.id % list.length]
-  return pick === list[0] && list.length === 1 ? [list[0]] : [pick, list[0]]
-}
-const modelFit = (n: GNode): number => n.kind === 'zone' ? (ZONE_FIT[n.zoneType ?? 'predio'] ?? 9) : n.kind === 'gen' ? 10 : n.kind === 'sub' ? 10 : 6
-
-const MemoEnvironment = memo(Environment)
-const MemoPlayer = memo(Player)
-
-interface Preview { length: number; R: number; cost: number; I: number; loss: number; eqT: number; risk: 'ok' | 'warn' | 'bad' }
-const RISK_COLOR = { ok: HEALTH.ok, warn: HEALTH.warn, bad: HEALTH.bad }
-
-function CablePreview({ pendingId, x, z }: { pendingId: number; x: number; z: number }) {
-  const material = useGame(s => s.material), area = useGame(s => s.area)
-  const nodes = useGame.getState().nodes
-  const a = nodes.find(n => n.id === pendingId)
-  const p: Preview | null = useMemo(() => {
-    if (!a) return null
-    const length = Math.hypot(a.x - x, a.z - z) || 0.1
-    const R = resistance(material, length, area)
-    const cost = length * PRICE[material] * (area / 35)
-    const dest = nodes.find(n => n.x === x && n.z === z)
-    const load = dest?.kind === 'zone' ? dest.kW : 0
-    const I = (load * 1000) / Math.max(a.volt || 220, 1)
-    const loss = jouleLoss(R, I)
-    const eqT = T_AMB + (loss * HEAT) / COOL
-    const risk: Preview['risk'] = eqT >= T_MAX ? 'bad' : eqT >= 75 ? 'warn' : 'ok'
-    return { length, R, cost, I, loss, eqT, risk }
-  }, [a, x, z, material, area, nodes])
-  if (!a || !p) return null
-  const c = RISK_COLOR[p.risk]
-  return (
-    <Html position={[(a.x + x) / 2, 10, (a.z + z) / 2]} center distanceFactor={90}>
-      <div style={{ background: '#000d', border: `2px solid ${c}`, borderRadius: 4, padding: '3px 6px', fontSize: 11, color: '#fff', whiteSpace: 'nowrap' }}>
-        {p.length.toFixed(0)} m · R={p.R.toFixed(3)} Ω · I≈{p.I.toFixed(0)} A · perda≈{(p.loss / 1000).toFixed(2)} kW · R$ {p.cost.toFixed(0)}
-        {p.risk !== 'ok' && <b style={{ color: c }}> · {p.risk === 'bad' ? '⚠ superaquece!' : '⚠ esquenta'}</b>}
-      </div>
-    </Html>
-  )
+function Ring({ color, size = 4.8, filled = false }: { color: string; size?: number; filled?: boolean }) {
+  return <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.105, 0]} raycast={noRaycast}>
+    <ringGeometry args={[filled ? size * 0.56 : size * 0.92, size, 4, 1, Math.PI / 4]} />
+    <meshBasicMaterial color={color} transparent opacity={filled ? 0.37 : 0.95} depthWrite={false} />
+  </mesh>
 }
 
-// Piso + fantasma + prévia do cabo. Fica separado para que o movimento do mouse
-// NÃO re-renderize a lista de nós/cabos do Scene.
+function MapLabel({ color, y, children }: { color: string; y: number; children: string }) {
+  return <Html position={[0, y, 0]} center zIndexRange={[6, 1]} style={{ pointerEvents: 'none' }}>
+    <span style={{ ...badgeStyle, borderColor: color }}>{children}</span>
+  </Html>
+}
+
+const NodeView = memo(function NodeView({ id, x, z }: { id: number; x: number; z: number }) {
+  const state = useGame(useShallow(s => {
+    const n = s.nodes.find(n => n.id === id)
+    return {
+      kind: n?.kind, zoneType: n?.zoneType, genType: n?.genType, volt: n?.volt,
+      powered: s.powered.includes(id), mismatch: s.mismatch.includes(id), failed: !!n?.failed,
+      near: !!n && n.cap > 0 && n.load > n.cap * 0.85,
+      active: s.view === 'orbit' && !s.photo, photo: s.photo, cable: s.tool === 'cabo',
+      pending: s.pending === id, moving: s.moving === id, hovered: s.hoverNode === id,
+      selected: s.sel?.type === 'node' && s.sel.id === id,
+    }
+  }))
+  const node = useMemo(() => {
+    if (!state.kind) return null
+    return { ...makeNode(id, state.kind, x, z, state.volt ?? 220), genType: state.genType, zoneType: state.zoneType }
+  }, [id, x, z, state.kind, state.volt, state.genType, state.zoneType])
+  if (!node) return null
+  const color = state.failed ? HEALTH.bad : state.mismatch ? PALETTE.mismatch : state.near ? HEALTH.warn
+    : state.pending || state.moving ? PALETTE.origin : state.selected || state.hovered ? PALETTE.marker : null
+  const label = state.failed ? strings.map.failed : state.mismatch ? strings.map.incompatible : state.near ? strings.map.capacity : null
+  return <group position={[x, 0, z]} onClick={e => {
+    if (!state.active || e.delta >= 5) return
+    e.stopPropagation()
+    useGame.getState().clickNode(id)
+  }} onPointerOver={() => {
+    if (state.active && state.cable && useGame.getState().hoverNode !== id) useGame.getState().set({ hoverNode: id })
+  }} onPointerOut={() => {
+    if (useGame.getState().hoverNode === id) useGame.getState().set({ hoverNode: null })
+  }}>
+    <DistrictModel node={node} powered={state.powered} mismatch={state.mismatch} failed={state.failed} />
+    {color && !state.photo && <Ring color={color} size={6.9} />}
+    {label && !state.photo && <MapLabel y={districtBounds(node).max.y + 1.45} color={color ?? PALETTE.marker}>{label}</MapLabel>}
+  </group>
+})
+
+function GuideMarkers() {
+  const marker = useGame(useShallow(s => {
+    if (!s.guideVisible || s.photo || s.view !== 'orbit') return null
+    const step = firstLight(s) ?? expansionStep(s)
+    if (!step) return null
+    if ('lot' in step && step.lot && s.tool === (step.kind === 'expandTrafo' ? 'trafo' : step.kind)) {
+      return { kind: 'lot' as const, x: step.lot.x, z: step.lot.z }
+    }
+    if (s.tool !== 'cabo' || !('from' in step)) return null
+    const from = s.nodes.find(n => n.id === step.from)
+    const to = s.nodes.find(n => n.id === step.to)
+    if (!from || !to || (s.pending !== null && s.pending !== from.id)) return null
+    return {
+      kind: 'link' as const, fromX: from.x, fromZ: from.z, toX: to.x, toZ: to.z, showSource: s.pending === null,
+      fromY: districtBounds(from).max.y + 1.1, toY: districtBounds(to).max.y + 1.1,
+    }
+  }))
+  if (!marker) return null
+  if (marker.kind === 'lot') return <group position={[marker.x, 0, marker.z]}>
+    <Ring color={PALETTE.marker} size={6.2} filled />
+    <MapLabel y={1.15} color={PALETTE.marker}>{strings.guide.highlight}</MapLabel>
+  </group>
+  return <>
+    {marker.showSource && <group position={[marker.fromX, 0, marker.fromZ]}>
+      <Ring color={PALETTE.origin} size={6.9} />
+      <MapLabel y={marker.fromY} color={PALETTE.origin}>{strings.guide.from}</MapLabel>
+    </group>}
+    <group position={[marker.toX, 0, marker.toZ]}>
+      <Ring color={PALETTE.marker} size={6.9} />
+      <MapLabel y={marker.toY} color={PALETTE.marker}>{strings.guide.to}</MapLabel>
+    </group>
+  </>
+}
+
+function ConnectionPreview() {
+  const { from, to, area, material, mult, rmult, budget } = useGame(useShallow(s => ({
+    from: s.nodes.find(n => n.id === s.pending), to: s.nodes.find(n => n.id === s.hoverNode),
+    area: s.area, material: s.material, mult: s.mult, rmult: s.rmult, budget: Math.floor(s.budget),
+  })))
+  const ax = from?.x, az = from?.z, ay = from && connectionHeight(from)
+  const bx = to?.x, bz = to?.z, by = to && connectionHeight(to)
+  const curve = useMemo(() => ax === undefined || ay === undefined || az === undefined || bx === undefined || by === undefined || bz === undefined
+    ? null : cableCurve(ax, ay, az, bx, by, bz), [ax, ay, az, bx, by, bz])
+  if (!from || !to || from.id === to.id || !curve) return null
+  const q = cableQuote(from, to, material, area, mult, rmult)
+  const color = q.mismatch ? PALETTE.mismatch : q.overheating || q.voltageDrop || q.cost > budget ? HEALTH.bad : q.overcurrent ? HEALTH.warn : PALETTE.marker
+  return <Tube curve={curve} radius={0.23} color={color} />
+}
+
 function GroundLayer() {
-  const view = useGame(s => s.view)
-  const tool = useGame(s => s.tool)
-  const genType = useGame(s => s.genType)
-  const pending = useGame(s => s.pending)
-  const photo = useGame(s => s.photo)
-  const place = useGame(s => s.place)
-  const budget = useGame(s => s.budget)
-  useGame(s => s.nodes.map(n => `${n.id}:${n.x}:${n.z}`).join('|')) // reassina em mudança estrutural
+  const { tool, view, photo, moving, genType, hasFunds } = useGame(useShallow(s => ({
+    tool: s.tool, view: s.view, photo: s.photo, moving: s.moving, genType: s.genType,
+    hasFunds: constructionCost(s.tool, s.genType) <= s.budget,
+  })))
   const [hover, setHover] = useState<{ x: number; z: number } | null>(null)
-  const nodes = useGame.getState().nodes
-  const canBuild = view === 'orbit' && !photo
-  const buildKind = tool === 'gen' || tool === 'sub' || tool === 'trafo' || tool === 'zone'
-  const cost = tool === 'gen' ? GENS[genType].cost : 0
-  const blocked = hover ? nodes.some(n => Math.hypot(n.x - hover.x, n.z - hover.z) < MIN_DIST) : false
-  const ghostOk = !blocked && (tool !== 'gen' || cost <= budget)
-  return (
-    <>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow
-        onPointerMove={e => { if (canBuild) setHover({ x: snap(e.point.x), z: snap(e.point.z) }) }}
-        onPointerOut={() => setHover(null)}
-        onClick={e => { if (canBuild) place(snap(e.point.x), snap(e.point.z)) }}>
-        <planeGeometry args={[400, 400]} /><meshStandardMaterial color={PALETTE.ground} roughness={0.95} />
+  const active = view === 'orbit' && !photo
+  const placing = active && (isBuilding(tool) || (tool === 'move' && moving !== null))
+  const blocked = useGame(s => hover ? lotOccupied(s.nodes, hover.x, hover.z, moving) : false)
+  const valid = hasFunds && !blocked
+  return <>
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.1, 0]}
+      onPointerMove={e => {
+        if (!placing) return
+        const x = snap(e.point.x), z = snap(e.point.z)
+        setHover(p => p?.x === x && p.z === z ? p : { x, z })
+      }}
+      onPointerOut={() => setHover(null)}
+      onClick={e => {
+        if (!active || e.delta >= 5) return
+        const s = useGame.getState()
+        if (s.tool === 'sel') s.set({ sel: null })
+        else if (s.tool === 'cabo') s.set({ pending: null, hoverNode: null })
+        else s.place(snap(e.point.x), snap(e.point.z))
+      }}>
+      <planeGeometry args={[400, 400]} /><meshBasicMaterial visible={false} />
+    </mesh>
+    {placing && <gridHelper args={[400, 40, '#788c7a', '#7d917d']} position={[0, 0.102, 0]} raycast={noRaycast} />}
+    {placing && hover && <group position={[hover.x, 0, hover.z]}>
+      <Ring color={valid ? PALETTE.marker : HEALTH.bad} size={6.1} filled />
+      <mesh position={[0, 1.8 * DISTRICT_MODEL_SCALE[1], 0]} scale={DISTRICT_MODEL_SCALE} raycast={noRaycast}>
+        <boxGeometry args={[tool === 'trafo' ? 5.1 : 7, genType === 'solar' && tool === 'gen' ? 2.5 : 3.5, 6]} />
+        <meshBasicMaterial color={valid ? PALETTE.marker : HEALTH.bad} wireframe transparent opacity={0.65} />
       </mesh>
-      <gridHelper args={[400, 40, '#3b4d3b', '#2f402f']} position={[0, 0.06, 0]} />
-      {hover && buildKind && canBuild && (
-        <group position={[hover.x, 0, hover.z]}>
-          <mesh position={[0, 0.5, 0]}><boxGeometry args={[8, 1, 8]} /><meshBasicMaterial color={ghostOk ? HEALTH.ok : HEALTH.bad} transparent opacity={0.35} /></mesh>
-          <mesh position={[0, 4 + (tool === 'gen' || tool === 'zone' ? 3 : 0), 0]}><boxGeometry args={[7, 6, 7]} /><meshBasicMaterial color={ghostOk ? HEALTH.ok : HEALTH.bad} transparent opacity={0.18} wireframe /></mesh>
-        </group>
-      )}
-      {tool === 'cabo' && pending !== null && hover && <CablePreview pendingId={pending} x={hover.x} z={hover.z} />}
-    </>
-  )
+    </group>}
+  </>
+}
+
+const GameDistrict = memo(function GameDistrict() {
+  useGame(s => s.nodes.map(n => n.id + ':' + n.x + ':' + n.z + ':' + connectionHeight(n)).join('|'))
+  useGame(s => s.cables.map(c => c.id + ':' + c.a + ':' + c.b).join('|'))
+  const preview = useGame(s => !s.photo && s.view === 'orbit' && s.tool === 'cabo' && s.pending !== null)
+  const { nodes, cables } = useGame.getState()
+  const locations = new Map(nodes.map(n => [n.id, n]))
+  return <>
+    <GroundLayer />
+    {nodes.map(n => <NodeView key={n.id} id={n.id} x={n.x} z={n.z} />)}
+    {cables.map(c => {
+      const a = locations.get(c.a), b = locations.get(c.b)
+      return a && b ? <CableView key={c.id} id={c.id} ax={a.x} ay={connectionHeight(a)} az={a.z} bx={b.x} by={connectionHeight(b)} bz={b.z} /> : null
+    })}
+    <GuideMarkers />
+    {preview && <ConnectionPreview />}
+  </>
+})
+
+const demoGen = makeNode(4, 'gen', 20, 7, 0)
+const demoTrafo = makeNode(5, 'trafo', 31, 10, 110)
+const demoNodes = [
+  ...buildSeedCity().nodes, demoGen, demoTrafo,
+  { ...makeNode(6, 'zone', 61, 31, 220), zoneType: 'predio' as const },
+  { ...makeNode(7, 'zone', 47, 31, 220), zoneType: 'hospital' as const },
+  { ...makeNode(8, 'gen', 70, 10, 0), genType: 'solar' as const },
+]
+const demoLinks = [[3, 4], [4, 0], [4, 1], [4, 2]].map(([i, j]) => {
+  const a = demoNodes[i], b = demoNodes[j]
+  return cableCurve(a.x, connectionHeight(a), a.z, b.x, connectionHeight(b), b.z)
+})
+const MenuDistrict = memo(function MenuDistrict() {
+  return <>
+    {demoNodes.map(n => <group key={n.id} position={[n.x, 0, n.z]}><DistrictModel node={n} powered={n.id < 6} /></group>)}
+    {demoLinks.map((curve, i) => <Tube key={i} curve={curve} radius={0.2} color={PALETTE.live} />)}
+  </>
+})
+
+function DistrictCamera({ preview }: { preview: boolean }) {
+  const controls = useRef<OrbitControlsImpl>(null)
+  const camera = useThree(s => s.camera)
+  const size = useThree(s => s.size)
+  const { view, photo, session, cameraReset } = useGame(useShallow(s => ({ view: s.view, photo: s.photo, session: s.session, cameraReset: s.cameraReset })))
+  const portrait = size.width < size.height
+  const orbit = view === 'orbit' || photo
+  useLayoutEffect(() => {
+    if (!orbit && !preview) return
+    const target = new THREE.Vector3(30, 0, 18)
+    const nodes = useGame.getState().nodes
+    const zones = nodes.filter(n => n.kind === 'zone')
+    const district = zones.length ? zones : nodes
+    if (preview) target.set(portrait ? 41 : 18, 0, portrait ? 34 : 25)
+    else if (district.length) target.set(district.reduce((sum, n) => sum + n.x, 0) / district.length, 0, district.reduce((sum, n) => sum + n.z, 0) / district.length)
+    if (portrait && !preview) target.y = 15
+    const offset = preview ? (portrait ? [42, 57, 70] : [54, 56, 80]) : (portrait ? [36, 72, 83] : [37, 61, 76])
+    if (camera instanceof THREE.PerspectiveCamera) {
+      camera.fov = portrait ? 52 : 42
+      camera.updateProjectionMatrix()
+    }
+    camera.position.set(target.x + offset[0], offset[1], target.z + offset[2])
+    camera.lookAt(target)
+    camera.updateMatrixWorld()
+    controls.current?.target.copy(target)
+    controls.current?.update()
+  }, [camera, orbit, preview, portrait, session, cameraReset])
+  if (preview || !orbit) return null
+  return <OrbitControls ref={controls} makeDefault maxPolarAngle={Math.PI / 2.12} minDistance={17} maxDistance={265} enableDamping dampingFactor={0.16} />
 }
 
 export default function Scene() {
-  const view = useGame(s => s.view)
-  const pending = useGame(s => s.pending)
-  const moving = useGame(s => s.moving)
-  const photo = useGame(s => s.photo)
-  const clickNode = useGame(s => s.clickNode)
-  useGame(s => s.nodes.map(n => `${n.id}:${n.kind}:${n.x}:${n.z}:${n.volt}`).join('|'))
-  useGame(s => s.cables.map(c => `${c.id}:${c.a}:${c.b}`).join('|'))
-  const nodes = useGame.getState().nodes
-  const cables = useGame.getState().cables
-  const pos = (id: number) => nodes.find(n => n.id === id)
-  const canBuild = view === 'orbit' && !photo
-
-  return (
-    <>
-      <MemoEnvironment />
-      <GroundLayer />
-      {nodes.map(n => (
-        <group key={n.id} position={[n.x, 0, n.z]} onClick={e => { e.stopPropagation(); if (canBuild) clickNode(n.id) }}>
-          <GltfOr name={modelNames(n)} fit={modelFit(n)} lit={n.kind === 'zone'}><NodeModel id={n.id} kind={n.kind} volt={n.volt} zoneType={n.zoneType} /></GltfOr>
-          {pending === n.id && <mesh position={[0, 20, 0]} rotation={[Math.PI, 0, 0]}><coneGeometry args={[2, 4]} /><meshBasicMaterial color="#38bdf8" /></mesh>}
-          {moving === n.id && <mesh position={[0, 20, 0]} rotation={[Math.PI, 0, 0]}><coneGeometry args={[2, 4]} /><meshBasicMaterial color="#f472b6" /></mesh>}
-        </group>
-      ))}
-      {cables.map(c => { const a = pos(c.a), b = pos(c.b); return a && b ? <CableView key={c.id} id={c.id} ax={a.x} az={a.z} bx={b.x} bz={b.z} /> : null })}
-      <MemoPlayer />
-    </>
-  )
+  const preview = useGame(s => s.screen === 'menu')
+  return <>
+    <Environment preview={preview} />
+    {preview ? <MenuDistrict /> : <><GameDistrict /><Player /></>}
+    <DistrictCamera preview={preview} />
+  </>
 }

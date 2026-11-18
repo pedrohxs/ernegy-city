@@ -132,8 +132,8 @@ export function solve(nodes: GNode[], cables: Cable[], mult = 1, rmult = 1): Sol
   return res
 }
 
-export function stepCable(c: Cable, I: number, V: number, drop: number, dt: number, maintained = false): Cable {
-  const loss = jouleLoss(c.R, I)
+export function stepCable(c: Cable, I: number, V: number, drop: number, dt: number, maintained = false, rmult = 1): Cable {
+  const loss = jouleLoss(c.R * rmult, I)
   const temp = c.temp + (loss * HEAT - (c.temp - T_AMB) * COOL) * dt
   if (c.failed) return { ...c, current: I, volt: V, drop, loss, temp }
   const Iz = ampacity(c.material, c.area)

@@ -1,63 +1,36 @@
-# Direção de arte — Energy City 3D
+# Direção de arte
 
-Estilo: **low-poly polido com iluminação forte**. Formas simples (caixas/cilindros), flat shading pontual, materiais PBR contidos, emissivos usados como fonte de luz (janelas, cabos quentes) para o bloom. Coeso em dia e noite.
+O bairro é uma maquete urbana. Use asfaltos e vegetação dessaturados e mantenha o contraste nos equipamentos, nas fachadas e nos estados da rede. O menu enquadra uma maquete demonstrativa independente das partidas salvas.
 
-## Paleta
+## Modelos e iluminação
 
-Definida em `src/render/art.ts` (`PALETTE`):
+- As casas têm volumes baixos, telhados e janelas variadas. O prédio é escalonado. O hospital tem marquise e sinalização frontal.
+- A escala das construções é de 1,04 nos eixos horizontais e 1,14 na altura. As dimensões resultantes orientam colisão, pontos de cabo e posicionamento dos rótulos.
+- O eletricista mede cerca de duas unidades. Em terceira pessoa, a câmera se aproxima o suficiente para ler o uniforme e a passada junto às portas das casas.
+- Equipamentos de gás, hídrica e solar se distinguem por chaminés, conjunto de turbinas e painéis, respectivamente. O transformador tem isoladores e radiadores, e a subestação tem vários pontos de distribuição.
+- As peças da cidade são definidas em [districtParts.ts](../src/render/districtParts.ts). Estrutura, base e janelas usam lotes de geometria compartilhados. Estrutura e base têm cores por vértice. As janelas têm materiais próprios para o estado elétrico.
+- Fundo e névoa acompanham o ciclo de dia e noite. A luz das janelas cresce ao anoitecer apenas nos imóveis atendidos. Um dia de jogo equivale a 600 s de simulação e começa às 08:00. A simulação determina a disponibilidade solar.
+- Ruas, calçadas, lotes, árvores e postes usam instâncias. A grade aparece ao construir ou escolher o destino de uma movimentação.
 
-| Papel | Cor |
+## Leitura da rede
+
+| Sinal | Estado |
 | --- | --- |
-| Céu (dia/noite) | `#8fc7f0` / `#050912` |
-| Névoa (dia/noite) | `#a9d3f0` / `#0a1220` |
-| Chão | `#4a6b4a` |
-| Rua | `#20262e` |
-| Prédio / telhado | `#8a97a6` / `#39424e` |
-| Zona 110 V / 220 V | `#6b7a8f` / `#7d6b8f` |
-| Metal claro / escuro | `#cbd5e1` / `#64748b` |
-| Árvore (tronco/copa) | `#5b3a1e` / `#2f8f4e` |
-| Poste de luz | `#fde68a` |
+| Janelas iluminadas | Imóvel atendido. |
+| Cabo verde | Corrente passando. |
+| Rótulo e contorno roxos | Tensão fora da faixa ou ligação incompatível. |
+| Âmbar | Cabo aquecendo ou equipamento perto da capacidade. |
+| Vermelho e rótulo | Falha. Fogo representa falha térmica em cabo. |
+| Azul e verde-claro | Origem e destino sugerido durante a ligação. |
 
-Saúde da rede (`HEALTH`): verde `#22c55e` → amarelo `#f59e0b` → vermelho `#ef4444`. O mesmo código de cores vale para o fantasma de construção (`ghostOk`), halo de limite e prévia do cabo.
+O HUD usa a mesma ênfase verde-clara para seleção, ações primárias e avanço. A janela de prévia mostra os riscos por escrito. O Post-Mortem descreve o motivo real da falha.
 
-## Iluminação e céu
+## Qualidade gráfica
 
-- `Sky` (drei) permanente com `sunPosition` animado; `Stars` aparecem quando escurece.
-- Luz direcional com **sombras suaves** (`shadow-radius`), ambiente + hemisférica fraca.
-- **Ciclo dia/noite**: 24 h de jogo em `DAY_SECONDS = 600 s` (10 min reais; ~2,5 min em 4×). Começa às **08:00**; nascer do sol às **06:00** e pôr às **18:00** (`src/game/clock.ts`).
-- Iluminação **contínua** (`dayFactor`/`nightFactor`): céu, névoa, sol, luz pública e janelas esmaecem suavemente — sem trocas binárias. O flag `night` (usado pelo gerador solar) tem **histerese** para não piscar.
-- O **horário** aparece no HUD, sob as estrelas (`☀/🌙 HH:MM`).
-
-## Pós-processamento (chave de qualidade)
-
-Presets em `QUALITY` (`baixa`/`media`/`alta`), aplicados em `src/render/PostFX.tsx`:
-
-| Efeito | Baixa | Média | Alta |
+| Preset | Sombras | Pós-processamento | Limite de DPR |
 | --- | --- | --- | --- |
-| Bloom (janelas/cabos quentes) | não | sim | sim |
-| Tone mapping ACES | sim | sim | sim |
-| Vinheta | não | sim | sim |
-| SSAO | não | não | sim |
-| Sombras / mapa | não / 512 | sim / 1024 | sim / 2048 |
-| Stars | não | sim | sim |
-| Pixel ratio (dpr) | 1 | 1,25 | 1,5 |
+| Baixa | Desligadas | Sem compositor | 1,0 |
+| Média | Mapa de 1024 | Sem compositor | 1,2 |
+| Alta | Mapa de 2048 | Bloom suave, SSAO e tone mapping no compositor | 1,5 |
 
-## Feedback de estado
-
-- Cabos coloridos pela temperatura (verde→vermelho) com **emissivo** proporcional ao calor (bloom nos quentes); escuros quando falhados.
-- **Halo** pulsante em componentes perto do limite (`load > 85% da capacidade`) e em componentes com tensão inadequada.
-- **Linhas de fluxo** cuja velocidade reflete a corrente (via `visualClock`).
-- Animação curta de **construção**: os componentes surgem com escala de 0,01 → 1.
-
-## Desempenho visual
-
-- Árvores e postes em `InstancedMesh`.
-- Cabos com **geometria própria** (`TubeGeometry`) memoizada por endpoints e `dispose()` no desmonte — sem recriar a cada tick.
-- Cada `NodeModel`/`CableView` assina só o que muda e é `memo`, evitando re-render por tick.
-- Frustum culling padrão do three; LOD não implementado (geometrias já são baratas).
-
-## Pendências
-
-- SSAO e sombras podem pesar em GPU integrada; a chave Baixa desliga ambos.
-- Animação de demolição é imediata (sem fade-out).
-- Instancing das janelas: as janelas usam textura de emissão compartilhada (barato), sem `InstancedMesh` dedicado.
+Os presets Baixa e Média usam o tone mapping ACES do renderizador. A decisão de usar o compositor apenas no preset Alta mantém a iluminação básica em máquinas com menor orçamento de GPU. Veja [Desempenho](PERF.md) para o teste de carga.

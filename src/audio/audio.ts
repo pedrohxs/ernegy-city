@@ -1,12 +1,16 @@
 // Áudio procedural com mixer: master + música + efeitos (sfx) + ambiente.
 // Sons 100% sintetizados (fallback garantido). Autoplay respeitado (inicia no 1º gesto).
+import { DEFAULT_VOLUMES } from '../data/prefs'
+import { logError } from '../data/telemetry'
+import { playMusic } from './music'
+
 export interface Mix { master: number; music: number; sfx: number; ambient: number }
-const mix: Mix = { master: 0.8, music: 0.5, sfx: 0.8, ambient: 0.6 }
+const mix: Mix = { ...DEFAULT_VOLUMES }
 let muted = false
 
 let ctx: AudioContext | null = null
 let master: GainNode, musicBus: GainNode, sfxBus: GainNode, ambBus: GainNode
-let humG: GainNode, sirO: OscillatorNode, sirG: GainNode, crkG: GainNode, musicG: GainNode
+let humG: GainNode, sirO: OscillatorNode, sirG: GainNode, crkG: GainNode
 
 function gainBus(g: GainNode, v: number) { g.gain.value = muted ? 0 : v }
 
@@ -31,12 +35,7 @@ export function startAudio(): void {
     const noise = ctx.createBufferSource(); noise.buffer = buf; noise.loop = true
     const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 3000
     crkG = ctx.createGain(); crkG.gain.value = 0; noise.connect(hp); hp.connect(crkG); crkG.connect(sfxBus); noise.start()
-    // trilha em loop: pad de 3 osciladores com LFO
-    musicG = ctx.createGain(); musicG.gain.value = 0.12; musicG.connect(musicBus)
-    const mf = ctx.createBiquadFilter(); mf.type = 'lowpass'; mf.frequency.value = 1200; mf.connect(musicG)
-    const lfo = ctx.createOscillator(); lfo.frequency.value = 0.08
-    const lfoG = ctx.createGain(); lfoG.gain.value = 0.06; lfo.connect(lfoG); lfoG.connect(musicG.gain); lfo.start()
-    for (const f of [110, 164.81, 220]) { const o = ctx.createOscillator(); o.type = 'triangle'; o.frequency.value = f; o.connect(mf); o.start() }
+    void playMusic(ctx, musicBus).catch(error => logError('music', error))
   } catch { ctx = null }
 }
 export function setMuted(m: boolean): void {
@@ -68,6 +67,22 @@ export function playPlace(): void {
   startAudio(); if (!ctx || muted) return
   const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'triangle'; o.frequency.setValueAtTime(330, ctx.currentTime); o.frequency.exponentialRampToValueAtTime(660, ctx.currentTime + 0.12); g.gain.value = 0.06
   o.connect(g); g.connect(sfxBus); o.start(); o.stop(ctx.currentTime + 0.15)
+}
+export function playMilestone(): void {
+  if (!ctx || muted) return
+  const t = ctx.currentTime
+  for (const [i, frequency] of [392, 523.25, 659.25].entries()) {
+    const oscillator = ctx.createOscillator()
+    const gain = ctx.createGain()
+    const start = t + i * 0.075
+    oscillator.type = 'sine'
+    oscillator.frequency.value = frequency
+    gain.gain.setValueAtTime(0, start)
+    gain.gain.linearRampToValueAtTime(0.075, start + 0.025)
+    gain.gain.exponentialRampToValueAtTime(0.001, start + 0.23)
+    oscillator.connect(gain); gain.connect(sfxBus)
+    oscillator.start(start); oscillator.stop(start + 0.24)
+  }
 }
 export function beep(): void {
   try {

@@ -1,52 +1,28 @@
-# Desempenho — Energy City 3D
+# Desempenho
 
-## Metodologia
+## Maquete urbana
 
-- **Chrome headless** com CDP: medição de `solve`, `advance` e FPS via `requestAnimationFrame` (`performance.now`).
-- **Build** medido pelo output do Vite (tamanho bruto e gzip por chunk).
-- **Limitação**: o headless usa renderização por software (SwiftShader). Os tempos de CPU (solver/advance) são representativos; **os FPS não são** — servem como piso. Não houve sessão interativa do React Profiler; a análise de re-render foi estrutural (assinaturas/seletores) e por contadores de mudança.
+O teste de carga comparou a revisão anterior (**0efeda3**) com a maquete (**8b60f7d**) no mesmo Windows. O cenário usa **30 zonas, 10 transformadores, 5 geradores e 60 cabos**, com a câmera no mesmo enquadramento. O Chrome headless rodou em **1024 × 640**, preset **Média** e DPR 1. A cena ficou pausada para isolar renderização. Os FPS são medidos em uma janela de aproximadamente 4 s com **requestAnimationFrame**. As chamadas e os triângulos são as médias dos contadores do renderizador, incluindo as passagens de sombra e pós-processamento.
 
-## Os 3 maiores gargalos e as correções
+O cenário tem cinco grupos com um gerador a gás e dois transformadores de 220 V por grupo. Cada transformador atende três prédios e há cabos entre prédios vizinhos no mesmo ramal. A câmera fica em **(94, 104, 146)**, olhando para **(24, 0, 30)**. Na rodada da integrada, o contexto WebGL pediu **low-power** e o renderer confirmou a Radeon.
 
-### 1. Solver com 300 iterações fixas → critério de convergência
+| Renderizador | FPS antes | FPS depois |
+| --- | ---: | ---: |
+| NVIDIA GeForce GTX 1650, D3D11 | 144 | 144 |
+| AMD Radeon integrada, D3D11 | — | 144 |
+| SwiftShader, software | 2,4 | 6,2 |
 
-`src/electrical/engine.ts`: o Gauss-Seidel rodava sempre 300 varreduras. Agora para ao atingir `maxDelta < 1e-3 V`. Mesmos resultados (testes e tabela de balanceamento praticamente idênticos), custo muito menor.
+| Métrica de renderização | Antes | Depois |
+| --- | ---: | ---: |
+| Chamadas de desenho por quadro | 392 | 233 |
+| Triângulos por quadro | 328.699 | 55.162 |
 
-| Medida (média) | Antes | Depois | Ganho |
-| --- | --- | --- | --- |
-| `solve` rede simples | 0,47–0,71 ms | **0,039 ms** | ~13–18× |
-| `solve` 30 zonas / 60 cabos | 6,3–9,4 ms | **0,435 ms** | ~15–21× |
-| `advance` (30 zonas) | 0,008–0,013 ms | **0,013 ms** | estável |
+Uma segunda rodada de 12 s com a cidade em simulação registrou **143,5 FPS** na GTX 1650 e **144 FPS** na Radeon integrada. Ambas ultrapassaram as metas de 60 e 30 FPS nessas condições. Os FPS do headless dependem do ritmo de quadros do ambiente. Para comparar outra revisão, use a mesma GPU, resolução, preset, posição de câmera e topologia. Teste também construção e movimento da câmera para avaliar estabilidade de frame time durante interações.
 
-### 2. Re-render da cena ao mover o mouse
+A maior redução vem de agrupar peças estáticas da maquete por cores de vértice e instanciar o terreno e a decoração. O preset Média mantém sombras e usa o tone mapping do renderizador. O compositor fica no preset Alta. Cabos mantêm a geometria enquanto os endpoints não mudam. Os seletores da cena separam posições e estados visuais da telemetria por passo.
 
-`src/render/Scene.tsx`: o estado de *hover* ficava no `Scene`, então cada movimento do mouse re-renderizava o componente que mapeia todos os nós e cabos. Extraído para `GroundLayer` (piso + fantasma + prévia do cabo), que é o único a re-renderizar com o ponteiro. O `Scene` só re-renderiza quando a **estrutura** muda (assinaturas de ids/posições), e `NodeModel`/`CableView` continuam `memo` e auto-assinantes por quadro.
+## Build e histórico
 
-### 3. Chunk único de ~1,2 MB → divisão de vendors
+O build da maquete gera aproximadamente **117 kB** para o chunk de entrada (**42 kB gzip**). O chunk de Three.js continua em aproximadamente **684 kB** (**176 kB gzip**), acima do limite padrão de 500 kB do aviso do Vite.
 
-`vite.config.ts`: `manualChunks` separa `react`, `three`, `r3f` e `postfx`.
-
-| Chunk | Antes | Depois |
-| --- | --- | --- |
-| Entrada da aplicação | 1.214 kB (gzip 338 kB) — único | **66 kB** (gzip 24 kB) |
-| react | — | 0,65 kB |
-| postfx | — | 95 kB (gzip 22 kB) |
-| r3f | — | 380 kB (gzip 120 kB) |
-| three | — | 684 kB (gzip 176 kB) |
-
-A entrada caiu ~18× em bruto; os vendors ficam em cache entre versões.
-
-## Situação após as correções
-
-| Métrica | Valor |
-| --- | --- |
-| `solve` simples | **0,039 ms** |
-| `solve` 30 zonas / 60 cabos | **0,435 ms** |
-| `advance` | **0,013 ms** |
-| FPS (software, qualidade Média com pós-processamento) | ~6 |
-
-## Pendências de desempenho
-
-- O **pós-processamento** (bloom/SSAO) domina o custo de GPU. Em GPU real tende a ser irrelevante; a chave **Baixa** o desliga (junto de sombras) para integradas. Recomenda-se remedir em GPU real.
-- `three` ainda passa de 500 kB (aviso do Vite). É inevitável para o renderizador; pode ser reduzido com `import` cirúrgico de módulos do three no futuro.
-- O FPS de ~6 é piso de software rendering, não uma meta.
+A [linha de base histórica](BASELINE.md) documenta a versão com passo de 500 ms e 300 iterações fixas. Medições feitas naquela fase usam outra cena e outro laço de simulação.

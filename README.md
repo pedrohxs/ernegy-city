@@ -1,160 +1,57 @@
-⚡ Energy City 3D
+# Rede Viva
 
-### Um jogo para entender como a energia chega até a sua casa.
+Projete uma rede elétrica para acender um bairro e acompanhar o crescimento da cidade. **Rede Viva** é um simulador didático em 3D. Cada escolha de tensão, material, seção e rota afeta a queda de tensão, as perdas e a integridade da rede.
 
-**Energy City 3D** é um simulador de rede elétrica em 3D. O jogador é o engenheiro da cidade: precisa levar energia do gerador até casas, prédios e hospitais, escolhendo cabos, transformadores e rotas — e lidando com as consequências reais de cada decisão.
+![Bairro inicial energizado, com a meta de 60 kW atingida](docs/screenshots/gameplay.png)
 
-![Gameplay do Energy City 3D](docs/screenshots/gameplay.png)
+## Comece a jogar
 
-> **Para a turma:** em 5 minutos, você constrói uma rede, acende três casas e descobre por que um cabo pode pegar fogo.
+Na **Campanha**, três casas de **110 V** esperam energia. Instale um gerador, ligue-o a um transformador de 110 V e conecte o transformador a cada casa. Siga os destaques do mapa e mantenha **60 kW por 20 s** para conquistar a primeira promoção.
 
-> **Quer o manual completo?** Veja o [Guia do Jogador](docs/GUIA_DO_JOGADOR.md). Este README é a apresentação rápida.
+- **Campanha** tem dez etapas na mesma cidade, com metas de atendimento, eficiência e onda de calor.
+- **Desafio** começa com R$ 200.000. Atenda integralmente uma cidade com demanda de pelo menos 150 kW por 20 s.
+- **Sandbox** oferece orçamento livre, sem crescimento automático ou eventos. O **Codex** abre circuitos didáticos para experimentar.
 
----
+O [Guia do Jogador](docs/GUIA_DO_JOGADOR.md) traz os controles, a primeira ligação e exemplos de diagnóstico.
+Veja também o [menu principal com a maquete](docs/screenshots/menu.png).
 
-## O jogo em 3 frases
+## Instalação e execução
 
-1. A cidade precisa de energia; você projeta a rede que leva essa energia até cada casa.
-2. Cada cabo tem comprimento, material e espessura; cada equipamento tem um limite de potência.
-3. A física é de verdade: cabo fino ou longo esquenta, perde energia e pode queimar. O jogo mostra a conta.
+Use Node.js e npm. O desenvolvimento foi validado com Node.js 24 e o [CI](.github/workflows/ci.yml) usa Node.js 20. Execute na raiz do repositório.
 
-**Objetivo:** atender a demanda da cidade, dentro do orçamento, sem apagões, pelo tempo pedido em cada nível.
+~~~sh
+npm ci
+npm run dev
+~~~
 
----
+Abra o endereço mostrado pelo Vite, normalmente [localhost:5173](http://localhost:5173). O jogo usa WebGL e não exige variáveis de ambiente nem backend. As partidas e preferências ficam no navegador, por origem. O build estático sai em **dist/** e pode ser conferido com **npm run preview**.
 
-## Como se joga
+| Comando | Uso |
+| --- | --- |
+| **npm run check** | TypeScript, ESLint e Vitest. É o comando do CI. |
+| **npm run build** | Compila TypeScript e gera o site de produção. |
+| **npm test** | Roda os testes, incluindo física, persistência e integração. |
+| **npm run balance:sim** | Exercita as dez metas com layouts de referência. |
+| **npm run assets:check** | Inspeciona tamanho, compressão e dimensões dos GLBs. |
 
-No nível 1, três casas de **110 V** esperam energia. A meta é atender **60 kW por 20 segundos**.
+## Arquitetura
 
-1. **Gerador** no chão livre, perto das casas.
-2. **Trafo (transformador) de 110 V** ao lado das casas.
-3. **Cabo** ligando o gerador ao trafo.
-4. **Cabo** ligando o trafo a cada casa.
-5. Espere o objetivo completar 20 segundos e veja as estrelas.
+React 18, TypeScript e Vite compõem a aplicação. Three.js, React Three Fiber e drei renderizam a cidade. Zustand coordena o estado e Web Audio sintetiza os sons.
 
-![Bairro semente com as três casas](docs/screenshots/casas.png)
+| Área | Responsabilidade |
+| --- | --- |
+| [**src/electrical**](src/electrical) | Solver nodal em CC, perdas e evolução térmica. O solver roda em Worker quando disponível. |
+| [**src/game**](src/game) | Passo de simulação, metas, economia, orientação, construção e diagnóstico. |
+| [**src/store**](src/store) | Ações do jogador, histórico da rede e integração com o solver e os slots. |
+| [**src/data**](src/data) | Constantes de balanceamento, save v4, migrações e preferências. |
+| [**src/render**](src/render) | Maquete, iluminação, câmera, avatares e leitura visual da rede. |
+| [**src/ui**](src/ui), [**src/i18n**](src/i18n) e [**src/audio**](src/audio) | HUD, menus, textos em pt-BR e áudio procedural. |
 
-> **O que é um trafo?** É a abreviação de **transformador**: o “adaptador” que recebe os **13.800 V** da rede e entrega **110 V ou 220 V** para as casas. Sem ele, a tensão seria alta demais para os aparelhos.
+Uma ação de interface atualiza o store. A cada passo de 0,1 s de simulação, o store entrega a topologia ao solver, aplica o resultado às regras de jogo e publica o estado que a interface e a cena exibem. Os testes de física e regras rodam sem renderizador.
 
-**A regra de ouro:** `gerador → (subestação opcional) → trafo → zona`.
+## Colaboração
 
-- A tensão do trafo precisa casar com a da zona: **110 V** para casas, **220 V** para prédios e hospitais.
-- Se a tensão estiver errada, a casa fica **roxa**.
-- Se a tensão cair mais de **10%**, a zona não liga.
-- Se o cabo passar de **95 °C**, ele queima e vira fogo.
-
-### O que acontece quando algo dá errado
-
-O jogo abre um **Post-Mortem**: corrente, resistência, queda de tensão, perda, temperatura e uma lista de soluções. A ideia não é punir — é mostrar **por que** falhou.
-
----
-
-## Por que ele é diferente de um jogo comum
-
-| O jogo mostra | O que isso significa na prática                                        |
-| ------------- | ---------------------------------------------------------------------- |
-| `R = ρ·L/A`   | Cabo mais longo ou mais fino tem mais resistência.                     |
-| `I = P/U`     | Tensão menor exige corrente muito maior.                               |
-| `P = R·I²`    | A perda cresce com o quadrado da corrente e vira calor.                |
-| `ΔV = R·I`    | A tensão cai ao longo do cabo; acima de 10% de queda, a zona não liga. |
-
-**Exemplo real do jogo:** uma casa de 20 kW em 110 V puxa **≈ 182 A**. Com um cabo de cobre de 35 mm² e 100 m, a queda é de **≈ 8,8 V (8%)** e a perda é de **≈ 1,6 kW**. A casa ainda liga, mas o cabo chega a **≈ 105 °C** e vai falhar. A solução: encurtar o trecho, aumentar a seção ou dividir a carga.
-
-É por isso que a energia é transmitida em **13,8 kV** e só é abaixada perto de quem consome: alta tensão significa menos corrente e muito menos perda.
-
----
-
-## As peças do jogo
-
-| Peça                      | O que faz                                                                                  |
-| ------------------------- | ------------------------------------------------------------------------------------------ |
-| **Gerador**               | Produz em 13,8 kV. Pode ser a gás (500 kW), hídrico (900 kW) ou solar (200 kW, só de dia). |
-| **Subestação**            | Concentra a alta tensão, tem capacidade de 300 kW e 1% de perda. É opcional.               |
-| **Transformador (trafo)** | É o “adaptador” de tensão: recebe 13,8 kV e entrega 110 V ou 220 V. Capacidade de 150 kW.  |
-| **Cabo**                  | Cobre ou alumínio, de 16 a 95 mm². Tem resistência, corrente, perda e temperatura.         |
-| **Zona**                  | Casa (110 V, 20 kW), prédio (220 V, 40 kW) ou hospital (220 V, 60 kW, crítico).            |
-
----
-
-## A tela em 1 minuto
-
-- **Barra superior:** demanda, energia atendida, perdas, orçamento, continuidade, relógio, nível e evento ativo.
-- **Painel esquerdo:** ferramentas de geração, transmissão, consumo, conexão e edição.
-- **Lista de cabos:** corrente, queda, perda e temperatura de cada trecho.
-- **Inspetor:** ao selecionar um componente, mostra os números e o estado.
-- **Missões e assistente:** objetivos extras e um cartão com o próximo passo, a causa do problema e a solução.
-
-**Cores:** roxo = tensão errada · vermelho = componente falhado · amarelo = perto do limite · fogo/faísca = cabo superaquecendo.
-
----
-
-## Modos de jogo
-
-| Modo         | Proposta                                                                     |
-| ------------ | ---------------------------------------------------------------------------- |
-| **Campanha** | 10 níveis, de 60 kW a 400 kW. Estrelas conforme o orçamento que sobra.       |
-| **Desafio**  | Chegar a 150 kW de demanda e manter tudo atendido por 20 s com R$ 200.000.   |
-| **Sandbox**  | Dinheiro infinito e sem eventos, para testar layouts e aprender sem pressão. |
-
-A cidade **cresce sozinha** quando você a mantém 100% atendida. A cada 40 s surge uma nova casa, prédio ou hospital. Depois de 60 s começam os eventos: pico de consumo (+50%), tempestade (+30% de resistência), queda de gerador e onda de calor (+20%).
-
-O jogo tem **3 slots de save**, **autosave a cada 5 segundos de jogo** e botões de **Salvar/Carregar** na pausa.
-
----
-
-## Controles essenciais
-
-| Tecla               | Ação                                   |
-| ------------------- | -------------------------------------- |
-| **Clique**          | Construir, selecionar ou conectar cabo |
-| **Arrastar / roda** | Girar e dar zoom na câmera orbital     |
-| **Espaço**          | Pausar / retomar                       |
-| **1 / 2 / 3**       | Velocidade 1× / 2× / 4×                |
-| **V**               | Câmera orbital / 3ª pessoa / 1ª pessoa |
-| **P**               | Modo fotografia                        |
-| **Ctrl+Z / Ctrl+Y** | Desfazer / refazer                     |
-| **Esc**             | Fechar janela ou pausar                |
-
-> A construção só funciona no modo **Orbital**.
-
----
-
-## Para o professor
-
-**O que a turma aprende jogando:**
-
-- por que a transmissão em alta tensão reduz perdas;
-- relação entre potência, tensão e corrente;
-- resistência em função de material, comprimento e seção;
-- efeito Joule, aquecimento e falha de condutores;
-- queda de tensão e tolerância de ±10%;
-- sobrecarga de transformadores e geradores;
-- diagnóstico de falhas com contas reais.
-
-**Ficha técnica:**
-
-| Item          | Detalhe                                                                                                                          |
-| ------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| Stack         | React 18, TypeScript, Vite, three.js / React Three Fiber, zustand                                                                |
-| Física        | Funções puras em [`src/electrical/engine.ts`](src/electrical/engine.ts), sem React ou Three                                      |
-| Regras        | Economia, níveis, eventos e missões em [`src/game/advance.ts`](src/game/advance.ts)                                              |
-| Balanceamento | Todos os números em [`src/data/balance.ts`](src/data/balance.ts)                                                                 |
-| Qualidade     | **71 testes** passando, ESLint, TypeScript estrito e CI no GitHub Actions                                                        |
-| Distribuição  | Site estático, sem backend; saves no `localStorage`                                                                              |
-| Documentação  | [Guia completo](docs/GUIA_DO_JOGADOR.md), [balanceamento](docs/BALANCE.md), [assets](docs/ASSETS.md), [desempenho](docs/PERF.md) |
-
-**Para rodar na sala:**
-
-```bash
-npm install
-npm run dev        # http://localhost:5173
-```
-
-Para validar o projeto:
-
-```bash
-npm run check      # tipos + lint + testes
-npm run build      # build de produção
-```
-
-> O [Guia do Jogador](docs/GUIA_DO_JOGADOR.md) detalha cada peça, cada grandeza, a economia, os eventos, as missões e as limitações conhecidas.
+- Consulte [AGENTS.md](AGENTS.md) e organize mudanças em commits pequenos com um objetivo claro. Centralize regras numéricas em [balance.ts](src/data/balance.ts) e a nova interface em [pt-BR.ts](src/i18n/pt-BR.ts).
+- Mantenha a física em funções testáveis e os seletores do store granulares. Alterações de persistência exigem versão e migração para os slots anteriores.
+- Antes de enviar uma mudança, rode **npm run check** e **npm run build**. Mudanças de interface devem ser exercitadas no navegador. Para simulação e economia, confira casos relevantes em **npm run balance:sim**.
+- Use o [changelog](CHANGELOG.md) para registrar mudanças perceptíveis e decisões relevantes. Consulte os documentos de [balanceamento](docs/BALANCE.md), [arte](docs/ART.md), [assets](docs/ASSETS.md) e [desempenho](docs/PERF.md) para trabalhar nessas áreas.

@@ -1,13 +1,11 @@
 // Simulação de balanceamento: monta layouts de referência, roda partidas automáticas
 // com passo fixo e verifica se as metas dos níveis 1-10 são alcançáveis e quanto sobra de orçamento.
-import { COST, ENERGY_PRICE, GENS, GROWTH_EVERY, HEAT_WAVE_AFTER, Level, LEVELS, LOSS_COST, PRICE, SUB_LOSS, WAVE_MULT } from '../data/balance'
+import { COST, ENERGY_PRICE, GENS, GROWTH_EVERY, Level, LEVELS, LOSS_COST, PRICE, SUB_LOSS, WAVE_MULT, WAVE_PERIOD } from '../data/balance'
 import { Cable, GNode, makeCable, makeNode, resistance, solve, stepCable, stepNode } from '../electrical/engine'
-import { goalSatisfied } from './advance'
-import type { S } from '../store/gameStore'
+import { isHeatWave, objective } from './objectives'
 
 const AREA = 95, HV_LEN = 20, LV_LEN = 10, DT = 0.1
 const HV_CABLE_AREA = 95
-const isHeat = (t: number) => t > HEAT_WAVE_AFTER && t % 90 < 20
 
 interface Layout { nodes: GNode[]; cables: Cable[]; cost: number; zones: GNode[] }
 let uid = 1
@@ -58,10 +56,10 @@ export function simulateLevel(level: Level): SimResult {
   let nodes = layout.nodes, cables = layout.cables
   let budget = level.budget - layout.cost
   // a onda de calor ocorre quando time%90 < 20 e time > HEAT_WAVE_AFTER → primeira janela aos 90-110s
-  const horizon = level.goal === 'heatwave' ? 90 + level.hold + 12 : level.hold + 12
+  const horizon = level.goal === 'heatwave' ? WAVE_PERIOD + level.hold + 12 : level.hold + 12
   let metT = 0, supply = 0, lossPct = 0, failures = 0, second = 0, reached = false
   for (let t = 0; t < horizon; t = +(t + DT).toFixed(4)) {
-    const mult = isHeat(t) ? WAVE_MULT : 1
+    const mult = isHeatWave(t) ? WAVE_MULT : 1
     const r = solve(nodes, cables, mult, 1)
     const pw = new Set(r.powered)
     const supplied = layout.zones.filter(z => pw.has(z.id)).reduce((a, z) => a + z.kW * mult, 0)
@@ -69,14 +67,14 @@ export function simulateLevel(level: Level): SimResult {
     const subLoss = nodes.filter(n => n.kind === 'sub').reduce((a, n) => a + (r.nodeLoad[n.id] ?? 0) * SUB_LOSS, 0)
     const losses = cableLoss + subLoss
     supply = supplied; lossPct = supplied > 0 ? (losses / supplied) * 100 : 0
-    const met = goalSatisfied({ level: level.n, time: t } as S, supplied, losses)
-    metT = met ? metT + DT : 0
     budget += (supplied * ENERGY_PRICE - losses * LOSS_COST) * DT
     cables = cables.map(c => stepCable(c, r.current[c.id] ?? 0, r.volt[c.id] ?? 220, r.drop[c.id] ?? 0, DT))
     nodes = nodes.map(n => stepNode(n, r.nodeLoad[n.id] ?? 0, DT))
     failures = nodes.filter(n => n.failed).length + cables.filter(c => c.failed).length
+    const goal = objective({ mode: 'campanha', level: level.n, challengeDone: false, time: t, demand: 0, supplied, losses, nodes, cables })
+    metT = goal?.block === null ? metT + DT : 0
     second = t
-    if (metT >= level.hold) { reached = true; break }
+    if (metT + 1e-8 >= level.hold) { reached = true; break }
   }
   const leftover = Math.max(0, budget)
   const stars = 1 + (leftover >= level.stars[0] ? 1 : 0) + (leftover >= level.stars[1] ? 1 : 0)

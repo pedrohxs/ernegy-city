@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useGame } from './gameStore'
+import { loadSlot } from '../data/save'
 
 const g = () => useGame.getState()
 
@@ -53,5 +54,18 @@ describe('save/load do jogo', () => {
     expect(g().goalT).toBe(11.5)
     expect(g().budget).toBe(12345)
     expect(g().level).toBe(4)
+  })
+
+  it('protege a campanha do autosave de um cenário do Codex', async () => {
+    g().set({ tool: 'gen' }); g().place(20, 10)
+    g().loadScenario('parallel')
+    expect(g().isScenario).toBe(true)
+    expect(loadSlot(g().slot)?.mode).toBe('campanha')
+    expect(loadSlot(g().slot)?.nodes).toHaveLength(4)
+    for (let i = 0; i < 12; i++) await g().stepSim(0.5)
+    expect(loadSlot(g().slot)?.mode).toBe('campanha')
+    g().load()
+    expect(g().isScenario).toBe(false)
+    expect(g().nodes).toHaveLength(4)
   })
 })

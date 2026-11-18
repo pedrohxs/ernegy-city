@@ -1,136 +1,43 @@
-# Balanceamento — Energy City 3D
+# Balanceamento e simulação
 
-Todos os números ficam em `src/data/balance.ts`. Este documento explica as fórmulas e as decisões.
+Os valores abaixo vêm de [src/data/balance.ts](../src/data/balance.ts). O jogo usa um modelo didático em corrente contínua com uma unidade de mapa representando um metro de comprimento para os novos cabos.
 
-## Física (didática, CC)
+## Rede elétrica
 
-- Resistência: **R = ρ·L/A**, com ρ_cobre = 0,017 e ρ_alumínio = 0,028 Ω·mm²/m.
-- Corrente: **I = P/U** (cargas de potência constante).
-- Queda de tensão: **ΔV = R·I**.
-- Perda por efeito Joule: **P = R·I²**.
-- Zona só é alimentada se |V/V_nom − 1| ≤ 10%; caso contrário fica roxa (`mismatch`).
-- Térmico do cabo: `T ← T + (P·HEAT − (T − T_amb)·COOL)·Δt`, com T_amb = 25 °C, HEAT = 0,005, COOL = 0,1. Falha em T_MAX = 95 °C.
-- Térmico de nó: `T_eq = T_amb + NODE_HEAT·(carga/capacidade)²`, NODE_HEAT = 70 (logo, 100% de carga ⇒ 95 °C). Sobrecarga > capacidade aquece e falha.
+| Grandeza | Cálculo |
+| --- | --- |
+| Resistência | **R = ρ·L/A**. Cobre usa 0,017 e alumínio 0,028 Ω·mm²/m. |
+| Corrente e queda | **I = P/U** para cargas de potência constante e **ΔV = R·I** no cabo. |
+| Perda por efeito Joule | **P = R·I²**. A resistência efetiva inclui o multiplicador de tempestade. |
+| Cabo | Temperatura ganha **P·0,005** e perde **(T − 25)·0,1** por segundo. O limite é 95 °C. |
+| Equipamento | Temperatura de equilíbrio de **25 + 70·(carga/capacidade)² °C** antes da manutenção. |
 
-## Solver e topologia
+Ampacidade é o limite de corrente usado no desgaste dos cabos. Em cobre de 16, 25, 35, 50, 70 e 95 mm², os limites são respectivamente 76, 101, 125, 151, 192 e 232 A. Alumínio usa 78% desses valores. Corrente acima de três vezes a ampacidade provoca rompimento imediato. Integridade cai lentamente em serviço, com desgaste acelerado quando a utilização ultrapassa 85%. A integridade zerada também causa falha.
 
-- Solver nodal (Gauss-Seidel, 300 iterações), ignora componentes falhados/offline.
-- Cada transformador tem 2 vértices: lado HV (`id`) e lado BT (`-id`).
-- **Vários geradores**: todos os geradores online são fontes fixas em 13,8 kV; o solver divide a carga entre eles e `nodeLoad` reporta a saída de cada um.
-- **Laços/malhas são suportados**: como o solver é nodal (Kirchhoff), cabos em paralelo dividem a corrente. Não há rejeição de laços.
-- `rmult` (tempestade) multiplica a resistência efetiva de todos os cabos.
+O solver usa Gauss–Seidel com tolerância de 0,001 V e até 300 iterações. Geradores online são fontes de 13,8 kV. O transformador tem um vértice de alta tensão e outro de baixa, ligado aos imóveis. A subestação faz distribuição em alta tensão, com throughput aproximado e perda própria de 1%. Uma zona é considerada atendida dentro de ±10% da tensão nominal. Instalações podem ter vários geradores e malhas. O editor bloqueia dois cabos com o mesmo par de pontos e o Codex inclui um circuito pré-montado com cabos paralelos. O jogo simplifica redes reais e não calcula corrente alternada, potência reativa ou proteção de distribuição.
 
-## Subestação
+## Economia e cidade
 
-- Capacidade: `CAP.sub = 300 kW`. A sub tem `nodeLoad` = throughput (≈ metade da soma dos fluxos nas arestas incidentes, em kW); se exceder a capacidade, aquece e falha como qualquer nó.
-- Perdas próprias: `SUB_LOSS = 1%` do throughput, somadas às perdas totais e cobradas na economia.
-- Distribuição para vários ramais é inerente: cabos ligados à sub dividem a carga.
+- O saldo por segundo considera potência atendida, perdas, combustível, manutenção e penalidade por apagão. Potência atendida rende R$ 0,50 por kW·s e perdas custam R$ 0,30 por kW·s. Abaixo de 50% de atendimento, aplica-se R$ 0,40 por kW·s de déficit com acréscimo para hospitais.
+- A manutenção cobra R$ 0,50 por nó por segundo. Reduz o aquecimento-alvo de equipamentos e o desgaste de integridade. Reparo custa 25% do valor original. Remoção de um componente devolve 50% do seu valor. Mover uma peça atualiza os comprimentos e as resistências dos cabos nela conectados e preserva seu custo histórico.
+- A cada marco de 40 s, o crescimento automático exige atendimento total, um lote disponível e menos de 60 zonas. Os lotes sugeridos pelo crescimento ficam em uma malha de 10 unidades próxima às zonas energizadas. A continuidade divide o tempo atendido pela soma dos tempos atendido e em apagão, contados a partir da primeira energização.
+- Após 60 s, o ciclo de eventos repete pico (+50% por 12 s), tempestade (+30% de resistência por 18 s) e religamento de um gerador (12 s), em intervalos de 45 s. Na Campanha, a onda de calor tem prioridade sobre o pico da demanda e aumenta a carga em 20% por 20 s a cada 90 s, a partir de 90 s. Sandbox fica livre desses eventos.
 
-## Geradores (`GENS`)
+## Campanha
 
-| Tipo | Capacidade | Custo | Partida | Combustível | Noturno |
-| --- | --- | --- | --- | --- | --- |
-| Gás | 500 kW | R$ 60.000 | 2 s | 0,04 R$/kW·s | não |
-| Hídrica | 900 kW | R$ 120.000 | 8 s | 0,02 R$/kW·s | não |
-| Solar | 200 kW | R$ 45.000 | 0 s | 0 | só de dia (offline à noite) |
+| Etapa | Meta | Tempo | Piso de entrada |
+| --- | --- | --- | --- |
+| 1 · Primeira luz | 60 kW | 20 s | R$ 150.000 |
+| 2 · Bairro novo | 80 kW | 20 s | R$ 160.000 |
+| 3 · Eficiência | 60 kW, perdas ≤ 10% | 20 s | R$ 170.000 |
+| 4 · Distrito industrial | 160 kW | 20 s | R$ 185.000 |
+| 5 · Onda de calor | 120 kW durante o calor | 15 s | R$ 200.000 |
+| 6 · Metrópole | 240 kW | 25 s | R$ 310.000 |
+| 7 · Rede enxuta | 220 kW, perdas ≤ 8% | 25 s | R$ 320.000 |
+| 8 · Alta demanda | 320 kW | 25 s | R$ 330.000 |
+| 9 · Tudo ao mesmo tempo | 300 kW durante o calor | 15 s | R$ 350.000 |
+| 10 · Energia para todos | 400 kW | 30 s | R$ 390.000 |
 
-Ao colocar um gerador, `cap` e `genType` vêm do tipo. Geradores ficam offline até `startLeft` chegar a 0 (tempo de partida) ou após uma queda.
+Uma falha ativa interrompe a estabilidade pedida pelas metas. A partida fica suspensa na tela de promoção. As estrelas refletem o saldo naquele momento. A próxima etapa preserva a rede, o histórico da cidade e o maior valor entre saldo atual e piso da etapa. A etapa 10 encerra a campanha. O valor **level = 11** no save representa essa conclusão. Missões paralelas creditam recompensas uma vez, de acordo com o que já está registrado no slot.
 
-## Economia (R$; tempo em segundos)
-
-Atualizada a cada passo (exceto sandbox, onde o orçamento é infinito):
-
-```
-Δorçamento = ( fornecida · ENERGY_PRICE
-             − perdas    · LOSS_COST
-             − (apagão ? déficit · BLACKOUT_PENALTY : 0)
-             − combustível
-             − manutenção ) · Δt
-```
-
-- `ENERGY_PRICE = 0,5` R$/kW·s fornecido.
-- `LOSS_COST = 0,3` R$/kW·s perdido (perdas de cabo + sub).
-- Apagão quando `fornecida < 0,5 · demanda`; penalidade `BLACKOUT_PENALTY = 0,4` R$ por kW·s de déficit.
-- Combustível = Σ (carga do gerador online · fuel do tipo).
-- Manutenção = nº de componentes · `MAINTENANCE_COST` (0,5 R$/componente·s) quando ativa.
-- Orçamento nunca fica negativo (piso 0).
-- Bônus de missão e `LEVEL_BONUS = 50.000` entram por cima.
-
-> Os valores são fictícios e ajustados para o jogo (a unidade de preço é por kW·s, não kWh real).
-
-## Reparo e manutenção
-
-- **Reparo**: componente falhado volta ao ar por `REPAIR_FRACTION = 25%` do valor original (gerador usa o custo do tipo). Restaura `failed=false`, `temp=T_amb`, e para gerador reinicia a partida.
-- **Manutenção** (contrato global): custo recorrente de 0,5 R$/componente·s e reduz o desgaste térmico (`MAINT_WEAR = 0,4`), diminuindo a chance de falha por sobrecarga.
-
-## Cidade e continuidade
-
-- **Bairro semente** (campanha/desafio): 3 casas de 110 V (60 kW) que o nível 1 pede para energizar.
-- **Crescimento**: a cada `GROWTH_EVERY = 40 s`, **se** `fornecida ≥ demanda` e houver menos de `MAX_ZONES = 60` zonas, surge uma casa/prédio/hospital num lote livre vizinho a uma zona energizada (BFS pela malha de ruas, lotes a cada 10 e longe das vias).
-- **Continuidade**: `serviceT` soma `dt` quando `fornecida ≥ demanda`; `outageT` soma quando `fornecida < 0,5·demanda` (apagão). O HUD mostra `serviceT/(serviceT+outageT)`. Ambos só contam **depois da primeira luz** (`everPowered`).
-- **Hospital**: `criticalT` soma `dt` enquanto um hospital está energizado; hospital sem energia recebe `CRITICAL_PENALTY` extra na economia.
-
-## Eventos
-
-- **Crescimento urbano**: nova zona a cada `GROWTH_EVERY = 40 s` (fora do sandbox).
-- **Onda de calor**: demanda ×1,2 na janela `time > 60 s` e `time % 90 < 20`.
-- **Eventos determinísticos** (após 60 s, a cada `EVENT_EVERY = 45 s`, ciclo pico → tempestade → queda):
-  - **Pico de consumo**: demanda ×1,5 por 12 s.
-  - **Tempestade**: resistência dos cabos ×1,3 por 18 s.
-  - **Queda de gerador**: um gerador online sai por 12 s (volta via partida).
-
-## Níveis 1-10
-
-Objetivos variados: fornecimento, perdas e onda de calor. `hold` é o tempo sustentando o objetivo; estrelas dependem do orçamento restante. Cada nível define seu orçamento inicial.
-
-Resultado do script de balanceamento (layouts de referência, `npm run balance:sim`):
-
-| Nível | Alcançável | Fornecido | Perdas % | Custo do layout | Sobra | ⭐ |
-| --- | --- | --- | --- | --- | --- | --- |
-| 1 | SIM | 80 | 1,1 | 116.983 | 33.812 | 1 |
-| 2 | SIM | 80 | 1,2 | 116.983 | 43.812 | 1 |
-| 3 | SIM | 80 | 1,2 | 116.983 | 53.812 | 2 |
-| 4 | SIM | 160 | 1,2 | 138.971 | 47.618 | 1 |
-| 5 | SIM | 144 | 1,2 | 119.480 | 86.963 | 2 |
-| 6 | SIM | 240 | 1,1 | 143.966 | 169.014 | 3 |
-| 7 | SIM | 240 | 1,1 | 143.966 | 179.014 | 3 |
-| 8 | SIM | 320 | 1,1 | 277.943 | 56.030 | 1 |
-| 9 | SIM | 384 | 1,2 | 277.943 | 89.238 | 1 |
-| 10 | SIM | 400 | 1,1 | 282.937 | 113.022 | 2 |
-
-O layout de referência usa clusters gerador→subestação→trafos→zonas, 1 zona de 220 V (40 kW) por posição, cabos de cobre 95 mm² curtos. Um teste (`src/game/balanceSim.test.ts`) afirma que todos os níveis são alcançáveis e cabem no orçamento.
-
-### Crescimento × orçamento
-
-A cidade cresce a cada 40 s enquanto estiver **totalmente atendida** (~+33 kW por evento, média do sorteio casa/prédio/hospital). O orçamento de cada nível precisa cobrir o layout inicial **e** o crescimento durante o nível + 1 min (validado por `growthCurve()`); por isso os orçamentos dos níveis 6-10 foram elevados.
-
-| Nível | Eventos | +kW | Custo inicial | Custo final | Orçamento | Cabe? |
-| --- | --- | --- | --- | --- | --- | --- |
-| 1 | 2 | 67 | 116.983 | 138.971 | 150.000 | SIM |
-| 2 | 2 | 67 | 116.983 | 138.971 | 160.000 | SIM |
-| 3 | 2 | 67 | 116.983 | 138.971 | 170.000 | SIM |
-| 4 | 2 | 67 | 138.971 | 143.966 | 185.000 | SIM |
-| 5 | 1 | 33 | 119.480 | 138.971 | 200.000 | SIM |
-| 6 | 2 | 67 | 143.966 | 277.943 | 310.000 | SIM |
-| 7 | 2 | 67 | 143.966 | 277.943 | 320.000 | SIM |
-| 8 | 2 | 67 | 277.943 | 282.937 | 330.000 | SIM |
-| 9 | 1 | 33 | 277.943 | 280.440 | 350.000 | SIM |
-| 10 | 2 | 67 | 282.937 | 287.931 | 390.000 | SIM |
-
-> O salto dos níveis 6/7 vem da virada de 1→2 clusters de 250 kW no layout de referência; na prática o jogador pode compartilhar o gerador existente e gastar menos.
-
-### Missões de continuidade
-
-- **🏥 Hospital energizado por 60 s** — `criticalT ≥ 60` (só cresce com hospital no ar).
-- **📶 Continuidade ≥ 95% por 2 min** — `serviceT ≥ 120` e `serviceT/(serviceT+outageT) ≥ 0,95`.
-- **🚫 Apagão zero: 90 s com tudo aceso** — `serviceT ≥ 90` e `outageT = 0` (nenhum apagão desde a primeira luz).
-
-## Assistente contextual
-
-O HUD mostra o próximo passo (gerador → trafo → cabo → zona) e explica o problema quando algo falha: tensão errada, cabo aquecendo/queimado, equipamento sobrecarregado ou zona sem caminho. A lógica fica em `src/game/diagnose.ts` (funções puras) e o cartão pode ser ocultado. Quando a cidade está atendida, ele desaparece.
-
-## Limitações / pendências
-
-- Modelo CC e subestação ideal exceto pelas perdas de throughput (aproximação de metade do fluxo incidente).
-- Script de balanceamento desliga eventos aleatórios (roda física + economia + onda de calor de forma determinística).
-- Preços fictícios; a escala ainda pode ser refinada em playtest.
+Para verificar mudanças, rode **npm run balance:sim**. O script testa cada meta com um layout de referência e uma estimativa de orçamento para expansão. O teste de integração do store cobre da primeira ligação à expansão. Na validação da maquete, um roteiro adicional usou as ações do store para ampliar uma cidade contínua e concluir as dez etapas, chegando a 420 kW atendidos em 327,1 s de simulação, sem falhas de componentes.

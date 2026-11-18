@@ -4,6 +4,23 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); 
 
 ## [Não lançado]
 
+- O jogo passa a se chamar **Rede Viva**.
+- Trilha procedural mais leve, com notas espaçadas e volume inicial de 20%. O controle de música continua independente dos efeitos e do ambiente.
+
+### Eletricista e escala da cidade
+
+- Eletricista articulado com caminhada e corrida ligadas ao deslocamento, apoio dos pés, balanço de braços e câmera de terceira pessoa mais próxima.
+- Construções 14% mais altas e 4% mais largas e profundas. Colisão de caminhada e câmera acompanha os limites visuais. Cabos e rótulos acompanham a nova altura.
+
+### Maquete urbana e campanha contínua
+
+- Maquete com fachadas e equipamentos procedurais, iluminação dia/noite, janelas ligadas ao atendimento e modelos distintos para gás, hídrica e solar. Ruas e decoração usam instâncias, e o compositor ficou restrito ao preset Alta.
+- Menu com a própria maquete e ação principal de acordo com o slot. HUD com meta e ferramenta atual, painel Rede sob demanda, destaques de lotes e conexões no mapa e feedback audiovisual para as primeiras ligações e promoções.
+- Guia de primeira luz e expansão derivado da rede construída. A prévia usa o custo e a resistência da compra e avisa sobre tensão, ampacidade e calor. Mover uma peça recalcula seus trechos.
+- Campanha mantém a mesma cidade, aplica o piso de saldo da etapa seguinte e termina após a décima meta. O tempo de estabilidade é interrompido por falhas e as metas de calor usam o passo calculado com o multiplicador ativo. O Desafio só conclui uma vez.
+- A tempestade usa a resistência efetiva nas perdas e no aquecimento. O Post-Mortem distingue calor, sobrecorrente e fim de integridade. Cenários do Codex ficam separados do autosave da campanha.
+- README, guia do jogador e referências técnicas revisados. Novas capturas e comparação de renderização com 30 zonas e 60 cabos.
+
 ### Adicionado
 - Recuperação de cabos: **Reparar** (25% do custo) e **Remover** (50% de reembolso) direto no Post-Mortem e no inspetor, com undo/redo.
 - Save v3: estrelas, total de estrelas, desafio concluído, continuidade, meta do nível e manutenção agora persistem, com migração automática de saves antigos.
@@ -12,7 +29,6 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); 
 - Autosave ao trocar de aba ou fechar a página.
 - Preferências de qualidade gráfica, volumes, sensibilidade e mudo persistidas separadamente dos slots.
 - **Diagnóstico contextual**: inspetor e assistente explicam tensão errada, zona sem energia, cabo aquecendo/queimado e equipamento sobrecarregado, com a solução.
-- **Assistente de próximo passo** no HUD, que acompanha a construção e desaparece quando a cidade está atendida.
 
 ### Corrigido
 - Personagem não continua andando depois de soltar a tecla quando a janela perde o foco, a câmera muda ou um menu/pausa é aberto.

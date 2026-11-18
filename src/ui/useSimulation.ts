@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { SimulationLoop } from '../game/simulation'
-import { useGame } from '../store/gameStore'
-import { playClick, setVolumes, startAudio, updateAudio } from '../audio/audio'
+import { simulationSpeed, useGame } from '../store/gameStore'
+import { beep, playClick, playMilestone, playPlace, startAudio, updateAudio } from '../audio/audio'
 import { advanceVisualTime } from '../game/visualClock'
 import { logError } from '../data/telemetry'
 
@@ -13,24 +13,26 @@ export function useSimulation(): void {
     let audioAcc = 0
     const loop = new SimulationLoop({
       step: dt => useGame.getState().stepSim(dt),
-      getScale: () => {
-        const s = useGame.getState()
-        return s.screen !== 'game' || s.overlay !== null || s.paused || s.report !== null ? 0 : s.speed
-      },
+      getScale: () => simulationSpeed(useGame.getState()),
       onFrame: (realDt, scale) => {
         advanceVisualTime(realDt * scale)
         audioAcc += realDt
         if (audioAcc < AUDIO_EVERY) return
         audioAcc = 0
         const s = useGame.getState()
-        setVolumes(s.volumes)
         updateAudio({
           hum: s.nodes.filter(n => n.kind === 'trafo').reduce((t, n) => t + n.load, 0),
-          siren: s.demand > 0 && s.supplied < s.demand * 0.5,
+          siren: s.everPowered && s.demand > 0 && s.supplied < s.demand * 0.5,
           hot: s.cables.some(c => !c.failed && c.temp > 75),
         })
       },
       onError: e => { logError('simulation', e); console.error('[simulation]', e) },
+    })
+    const unsubscribe = useGame.subscribe((state, previous) => {
+      if (state.session !== previous.session || state.screen !== 'game') return
+      if (state.report && state.report !== previous.report) beep()
+      else if ((state.everPowered && !previous.everPowered) || (state.levelResult && state.levelResult !== previous.levelResult)) playMilestone()
+      else if (state.nextId > previous.nextId && state.time === previous.time) playPlace()
     })
     const first = () => startAudio()
     window.addEventListener('pointerdown', first, { once: true })
@@ -39,6 +41,7 @@ export function useSimulation(): void {
     loop.start()
     return () => {
       loop.stop()
+      unsubscribe()
       window.removeEventListener('pointerdown', first)
       window.removeEventListener('click', onClick)
     }
