@@ -1,5 +1,7 @@
 # Energy City 3D — Linha de base (FASE 0)
 
+> Registro histórico do protótipo. Para a arquitetura atual, consulte o [README](../README.md). Para a comparação da maquete, consulte [Desempenho](PERF.md).
+
 Data da medição: 2026-10-09
 Escopo: reconhecimento, linha de base de build/testes/execução e medições de desempenho. Nenhuma feature nova foi adicionada.
 
