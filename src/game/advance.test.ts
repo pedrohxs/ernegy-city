@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { Res, advance, goalSatisfied } from './advance'
+import { Res, advance } from './advance'
+import { objective } from './objectives'
 import { S, useGame } from '../store/gameStore'
-import { ENERGY_PRICE, levelAt } from '../data/balance'
+import { ENERGY_PRICE, LEVELS, WAVE_MULT, levelAt } from '../data/balance'
 import { makeNode } from '../electrical/engine'
 import { ACHIEVEMENTS, MISSIONS } from './missions'
 
@@ -63,10 +64,55 @@ describe('economia (advance)', () => {
     expect(s.criticalT).toBe(10)
   })
 
-  it('goalSatisfied reprova perdas acima do limite', () => {
-    const lvl3 = state({ level: 3 }) // ≥60 kW com perdas <10%
-    expect(goalSatisfied(lvl3, 60, 0.1)).toBe(true)
-    expect(goalSatisfied(lvl3, 60, 12)).toBe(false)
-    expect(goalSatisfied(lvl3, 50, 0.1)).toBe(false) // abaixo do mínimo
+  it('distingue perdas acima do limite e fornecimento abaixo da meta', () => {
+    const lvl3 = state({ level: 3, supplied: 60, losses: 0.1 })
+    expect(objective(lvl3)?.block).toBeNull()
+    expect(objective({ ...lvl3, losses: 12 })?.block).toBe('losses')
+    expect(objective({ ...lvl3, supplied: 50 })?.block).toBe('supply')
+  })
+
+  it('zera a janela em caso de falha, mesmo com potência suficiente', () => {
+    const failed = { ...makeNode(1, 'trafo', 0, 0, 220), failed: true }
+    const s = state({ goalT: 19, nodes: [zone(), failed] })
+    const next = advance(s, poweredRes, 1)
+    expect(next.goalT).toBe(0)
+    expect(next.level).toBe(1)
+    expect(objective({ ...s, ...next })?.block).toBe('fault')
+  })
+
+  it('só conta a onda de calor no passo calculado com a demanda da onda', () => {
+    const hot = { ...zone(), kW: 100 }
+    let s = state({ level: 5, time: 89, nodes: [hot], mult: 1, eventT: 20 })
+    s = { ...s, ...advance(s, poweredRes, 1) }
+    expect(s.supplied).toBe(100)
+    expect(s.goalT).toBe(0)
+    expect(s.mult).toBe(WAVE_MULT)
+    s = { ...s, ...advance(s, poweredRes, 1) }
+    expect(s.supplied).toBe(120)
+    expect(s.goalT).toBe(1)
+  })
+
+  it('preserva saldo acima do piso e encerra a campanha uma vez', () => {
+    const promoted = advance(state({ nodes: [zone()], goalT: 19, budget: 200000 }), poweredRes, 1)
+    expect(promoted.budget).toBeGreaterThan(200000)
+    expect(promoted.levelResult).toMatchObject({ kind: 'level', grant: 0 })
+    const final = LEVELS.length
+    let s = state({ level: final, goalT: levelAt(final).hold - 1, nodes: [{ ...zone(), kW: 400 }] })
+    s = { ...s, ...advance(s, poweredRes, 1) }
+    expect(s.level).toBe(final + 1)
+    expect(s.levelResult).toMatchObject({ kind: 'final', level: final })
+    const next = advance({ ...s, levelResult: null }, poweredRes, 40)
+    expect(next.level).toBe(s.level)
+    expect(next.totalStars).toBe(s.totalStars)
+    expect(next.levelResult).toBeNull()
+  })
+
+  it('conclui o desafio uma vez e não progride no sandbox', () => {
+    const nodes = [{ ...zone(), kW: 150 }]
+    const challenge = state({ mode: 'desafio', nodes, goalT: 19 })
+    const won = advance(challenge, poweredRes, 1)
+    expect(won.levelResult).toMatchObject({ kind: 'challenge' })
+    expect(advance({ ...challenge, ...won, levelResult: null }, poweredRes, 30).levelResult).toBeNull()
+    expect(advance({ ...challenge, mode: 'sandbox' }, poweredRes, 30).level).toBe(1)
   })
 })

@@ -168,15 +168,18 @@ export function PauseOverlay() {
 export function LevelComplete() {
   const r = useGame(s => s.levelResult), clear = useGame(s => s.clearLevelResult)
   if (!r) return null
-  const next = levelAt(r.level + 1)
+  const t = strings.result
+  const next = r.kind === 'level' ? levelAt(r.level + 1) : null
+  const title = r.kind === 'challenge' ? t.challenge : r.kind === 'final' ? t.final : t.level(r.level)
   return (
-    <Modal title={`Nível ${r.level} concluído!`} wide>
-      <Stars n={r.stars} />
+    <Modal title={title} wide>
+      {r.kind !== 'challenge' && <Stars n={r.stars} />}
       <div className={css.col}>
-        <div className={css.step}><span className={css.stepKey}>Energia fornecida</span><span className={css.mono}>{r.supply.toFixed(0)} kW</span></div>
-        <div className={css.step}><span className={css.stepKey}>Gasto no nível</span><span className={css.mono}>R$ {r.spend.toFixed(0)}</span></div>
-        <div className={css.step}><span className={css.stepKey}>Próximo</span><span>Nível {next.n} — {next.title}: {goalText(next)}</span></div>
-        <div className={css.row}><Button variant="primary" size="lg" onClick={clear}>Continuar ▶</Button></div>
+        <div className={css.step}><span className={css.stepKey}>{t.supplied}</span><span className={css.mono}>{r.supply.toFixed(0)} kW</span></div>
+        {r.kind === 'challenge' && <div className={css.step}><span className={css.stepKey}>{t.spend}</span><span className={css.mono}>R$ {r.spend.toFixed(0)}</span></div>}
+        {r.kind === 'level' && <div className={css.step}><span className={css.stepKey}>{t.grant}</span><span className={css.mono}>R$ {Math.round(r.grant).toLocaleString('pt-BR')}</span></div>}
+        {next ? <div className={css.step}><span className={css.stepKey}>{t.next}</span><span><b>{t.nextLevel(next)}</b><br />{goalText(next)}</span></div> : <p>{t.finished}</p>}
+        <div className={css.row}><Button variant="primary" size="lg" onClick={clear}>{t.continue}</Button></div>
       </div>
     </Modal>
   )

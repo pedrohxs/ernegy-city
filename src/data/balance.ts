@@ -82,6 +82,7 @@ export const START_HOUR = 8 // o jogo começa às 08:00
 export const SUNRISE = 6 // nascer do sol
 export const SUNSET = 18 // pôr do sol
 export const WAVE_MULT = 1.2, WAVE_TIME = 20 // onda de calor
+export const WAVE_PERIOD = 90
 export const SPIKE_MULT = 1.5, SPIKE_TIME = 12 // pico de consumo
 export const STORM_MULT = 1.3, STORM_TIME = 18 // tempestade (aumenta R)
 export const TRIP_TIME = 12 // queda de gerador (s fora)
@@ -91,6 +92,13 @@ export const GOAL_SECONDS = 20
 export const LEVEL_BONUS = 50000
 export const CHALLENGE_KW = 150
 export const MAX_ZONES = 60 // limite de construções para não estourar solver/render
+export const BUILD_SPACING = 9
+export const STARTER_NETWORK = {
+  generator: { x: 20, z: 10 },
+  transformer: { x: 30, z: 10 },
+  feederArea: 35,
+  branchArea: 95,
+} as const
 
 export type GoalKind = 'supply' | 'losses' | 'heatwave'
 export interface Level {

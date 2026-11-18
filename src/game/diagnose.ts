@@ -1,7 +1,8 @@
 // Diagnóstico didático: transforma o estado da rede em causa + solução.
 // Funções puras (sem React/Three) para serem testadas e usadas pelo HUD e pelo inspetor.
 import { T_MAX } from '../data/balance'
-import type { Cable, GNode } from '../electrical/engine'
+import { ampacity, type Cable, type GNode } from '../electrical/engine'
+import { strings } from '../i18n/pt-BR'
 
 export type DiagnosisTone = 'ok' | 'info' | 'warn' | 'bad'
 
@@ -25,6 +26,13 @@ export interface NextActionInput {
 const KIND_LABEL: Record<string, string> = { gen: 'Gerador', sub: 'Subestação', trafo: 'Transformador', zone: 'Zona' }
 const zoneLabel = (n: GNode) => (n.zoneType === 'casa' ? 'Casa' : n.zoneType === 'predio' ? 'Prédio' : n.zoneType === 'hospital' ? 'Hospital' : 'Zona')
 const volts = (v: number | undefined) => Math.round(v ?? 0)
+
+export function faultDetail(component: GNode | Cable): string {
+  if (component.fault === 'wear') return strings.report.wear
+  if (component.fault === 'overcurrent' && 'area' in component) return strings.report.overcurrent(component.current, ampacity(component.material, component.area))
+  if (component.fault === 'heat') return strings.report.heat(T_MAX)
+  return strings.report.unknownFault
+}
 
 /** Explica o estado de uma zona consumidora. */
 export function diagnoseZone(n: GNode, voltage: number | undefined, powered: boolean, mismatch: boolean): Diagnosis {
@@ -62,8 +70,8 @@ export function diagnoseCable(c: Cable): Diagnosis {
   if (c.failed) {
     return {
       tone: 'bad',
-      title: 'Cabo queimado',
-      detail: `C-${c.id} passou de ${T_MAX} °C e parou de conduzir.`,
+      title: c.fault && c.fault !== 'heat' ? strings.report.cableFailed : 'Cabo queimado',
+      detail: faultDetail(c),
       fix: 'Selecione o cabo para reparar ou remover; o Post-Mortem mostra as contas.'
     }
   }
@@ -96,7 +104,7 @@ export function diagnoseNode(n: GNode, voltage: number | undefined): Diagnosis {
     return {
       tone: 'bad',
       title: 'Equipamento falhado',
-      detail: `${KIND_LABEL[n.kind]} #${n.id}: carga de ${n.load.toFixed(0)} kW para capacidade de ${n.cap} kW.`,
+      detail: faultDetail(n),
       fix: 'Selecione o equipamento e use Reparar.'
     }
   }

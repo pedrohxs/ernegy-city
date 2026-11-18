@@ -1,8 +1,10 @@
 import { create } from 'zustand'
-import { CHALLENGE_BUDGET, COST, GENS, GenType, HEALTH_MAX, levelAt, MAINTENANCE_COST, PRICE, REFUND, REPAIR_FRACTION, SANDBOX_BUDGET, T_AMB, ZONES, ZoneType } from '../data/balance'
-import { Cable, GNode, Kind, Material, makeCable, makeNode, resistance } from '../electrical/engine'
+import { CHALLENGE_BUDGET, COST, GENS, GenType, HEALTH_MAX, levelAt, MAINTENANCE_COST, REFUND, REPAIR_FRACTION, SANDBOX_BUDGET, T_AMB, WAVE_MULT, ZONES, ZoneType } from '../data/balance'
+import { Cable, GNode, Kind, Material, makeCable, makeNode } from '../electrical/engine'
 import { solveAsync } from '../electrical/solveService'
-import { Res, advance } from '../game/advance'
+import { advance } from '../game/advance'
+import { cableQuote, constructionCost, lotOccupied } from '../game/construction'
+import { isHeatWave } from '../game/objectives'
 import { SCENARIOS } from '../game/scenarios'
 import { buildSeedCity } from '../game/city'
 import { SaveSource, loadSlot, migrateLegacy, saveSlot } from '../data/save'
@@ -20,7 +22,9 @@ export type Mode = 'campanha' | 'sandbox' | 'desafio'
 export type Speed = 1 | 2 | 4
 export type Screen = 'menu' | 'game'
 export type Overlay = 'options' | 'credits' | 'codex'
-export interface LevelResult { level: number; stars: number; supply: number; spend: number }
+export type LevelResult =
+  | { kind: 'level' | 'final'; level: number; stars: number; supply: number; grant: number }
+  | { kind: 'challenge'; supply: number; spend: number }
 export interface Report { title: string; lines: string[]; fixes: string[]; target?: { type: 'node' | 'cable'; id: number } }
 export interface Sel { type: 'node' | 'cable'; id: number }
 export interface Snapshot { nodes: GNode[]; cables: Cable[]; budget: number; nextId: number }
@@ -32,7 +36,8 @@ export interface S {
   budget: number; msg: string; nextId: number; report: Report | null; codex: boolean
   score: number; level: number; stars: number; totalStars: number; combo: number; calm: number; goalT: number; time: number; mult: number; rmult: number
   demand: number; supplied: number; losses: number; event: string
-  spikeT: number; stormT: number; eventT: number; eventIdx: number; maintenanceOn: boolean
+  spikeT: number; stormT: number; tripId: number | null; eventT: number; eventIdx: number; maintenanceOn: boolean
+  session: number; sampleTime: number; sampleRmult: number
   mode: Mode; done: string[]; challengeDone: boolean; everPowered: boolean
   serviceT: number; outageT: number; criticalT: number
   paused: boolean; speed: Speed; slot: number; lastSave: number; simError: string
@@ -64,13 +69,13 @@ export interface S {
 
 const AUTOSAVE_EVERY = 5
 const DEFAULT_SLOT = 0
-const MIN_DIST = 9 // bloqueio de sobreposição entre construções (modelos ocupam ~8-11 u)
 const HISTORY_LIMIT = 50
 
 const init = {
   nodes: [] as GNode[], cables: [] as Cable[], powered: [] as number[], mismatch: [] as number[], nodeV: {} as Record<number, number>,
   budget: levelAt(1).budget, nextId: 1, score: 0, level: 1, stars: 0, totalStars: 0, combo: 1, calm: 0, goalT: 0, time: 0, mult: 1, rmult: 1,
-  demand: 0, supplied: 0, losses: 0, event: '', spikeT: 0, stormT: 0, eventT: 0, eventIdx: 0, maintenanceOn: false,
+  demand: 0, supplied: 0, losses: 0, event: '', spikeT: 0, stormT: 0, tripId: null, eventT: 0, eventIdx: 0, maintenanceOn: false,
+  session: 0, sampleTime: 0, sampleRmult: 1,
   report: null as Report | null, sel: null as Sel | null, pending: null as number | null, moving: null as number | null,
   msg: 'Coloque um gerador (13,8 kV).', mode: 'campanha' as Mode, done: [] as string[], challengeDone: false, everPowered: false, serviceT: 0, outageT: 0, criticalT: 0, simError: '',
   past: [] as Snapshot[], future: [] as Snapshot[],
@@ -101,12 +106,13 @@ export const useGame = create<S>((set, get) => ({
     if (!sc) return
     const { nodes, cables } = sc.build()
     const ids = [...nodes.map(n => n.id), ...cables.map(c => c.id)]
-    set({ ...init, nodes, cables, nextId: Math.max(1, ...ids) + 1, budget: SANDBOX_BUDGET, mode: 'sandbox', screen: 'game', overlay: null, paused: false, lastSave: 0, levelResult: null, msg: `Cenário: ${sc.title}` })
+    set({ ...init, session: get().session + 1, nodes, cables, nextId: Math.max(1, ...ids) + 1, budget: SANDBOX_BUDGET, mode: 'sandbox', screen: 'game', overlay: null, paused: false, view: 'orbit', photo: false, tool: 'sel', lastSave: 0, levelResult: null, msg: `Cenário: ${sc.title}` })
   },
   setMode: m => {
-    const seed = m === 'sandbox' ? { nodes: [], nextId: 1 } : buildSeedCity()
+    const seed = m === 'sandbox' ? { nodes: [], nextId: 1, demand: 0 } : buildSeedCity()
     set({
-      ...init, paused: false, mode: m, nodes: seed.nodes, nextId: seed.nextId, lastSave: 0, levelResult: null,
+      ...init, session: get().session + 1, paused: false, mode: m, ...seed, lastSave: 0, levelResult: null,
+      view: 'orbit', speed: 1, night: false, photo: false, tool: 'sel', genType: 'gas', zoneType: 'casa', material: 'cobre', area: 35, tv: 110,
       budget: m === 'sandbox' ? SANDBOX_BUDGET : m === 'desafio' ? CHALLENGE_BUDGET : levelAt(1).budget,
       msg: m === 'sandbox' ? `Modo ${m}. Coloque um gerador.` : 'Bairro sem energia: alimente as casas para começar.',
     })
@@ -118,13 +124,24 @@ export const useGame = create<S>((set, get) => ({
     const s = get(), k = s.tool
     if (k === 'move') {
       if (s.moving === null) return
-      if (s.nodes.some(n => n.id !== s.moving && Math.hypot(n.x - x, n.z - z) < MIN_DIST)) return set({ msg: 'Espaço ocupado: escolha outra célula.', moving: null })
-      return set({ ...withHistory(s), nodes: s.nodes.map(n => (n.id === s.moving ? { ...n, x, z } : n)), moving: null, msg: 'Componente movido.' })
+      if (lotOccupied(s.nodes, x, z, s.moving)) return set({ msg: strings.build.occupied })
+      const nodes = s.nodes.map(n => n.id === s.moving ? { ...n, x, z } : n)
+      const moved = nodes.find(n => n.id === s.moving)
+      if (!moved) return set({ moving: null })
+      const cables = s.cables.map(c => {
+        if (c.a !== moved.id && c.b !== moved.id) return c
+        const other = nodes.find(n => n.id === (c.a === moved.id ? c.b : c.a))
+        if (!other) return c
+        const { length, R } = cableQuote(moved, other, c.material, c.area)
+        // A mudança de rota altera a resistência. O custo histórico continua sendo a base do reembolso.
+        return { ...c, length, R }
+      })
+      return set({ ...withHistory(s), nodes, cables, moving: null, msg: strings.build.moved })
     }
     if (k !== 'gen' && k !== 'sub' && k !== 'trafo' && k !== 'zone') return
-    if (s.nodes.some(n => Math.hypot(n.x - x, n.z - z) < MIN_DIST)) return set({ msg: 'Espaço ocupado: escolha outra célula.' })
-    const cost = k === 'gen' ? GENS[s.genType].cost : COST[k]
-    if (cost > s.budget) return set({ msg: 'Orçamento insuficiente.' })
+    if (lotOccupied(s.nodes, x, z)) return set({ msg: strings.build.occupied })
+    const cost = constructionCost(k, s.genType)
+    if (cost > s.budget) return set({ msg: strings.build.unaffordable })
     let node = makeNode(s.nextId, k, x, z, s.tv)
     if (k === 'gen') {
       const spec = GENS[s.genType]
@@ -133,7 +150,7 @@ export const useGame = create<S>((set, get) => ({
       const spec = ZONES[s.zoneType]
       node = { ...node, volt: spec.volt, kW: spec.kW, zoneType: s.zoneType }
     }
-    set({ ...withHistory(s), nodes: [...s.nodes, node], budget: s.budget - cost, nextId: s.nextId + 1, msg: `${k} criado.` })
+    set({ ...withHistory(s), nodes: [...s.nodes, node], budget: s.budget - cost, nextId: s.nextId + 1, msg: strings.build.built(k, node.id) })
   },
   clickNode: id => {
     const s = get()
@@ -150,15 +167,15 @@ export const useGame = create<S>((set, get) => ({
       return set({ moving: id, msg: 'Clique no destino.' })
     }
     if (s.tool !== 'cabo') return
-    if (s.pending === null) return set({ pending: id, msg: 'Selecione o destino.' })
-    if (s.pending === id || s.cables.some(c => (c.a === id && c.b === s.pending) || (c.b === id && c.a === s.pending))) return set({ pending: null })
+    if (s.pending === null) return set({ pending: id })
+    if (s.pending === id) return set({ pending: null })
+    if (s.cables.some(c => (c.a === id && c.b === s.pending) || (c.b === id && c.a === s.pending))) return set({ msg: strings.build.duplicate })
     const a = s.nodes.find(n => n.id === s.pending), b = s.nodes.find(n => n.id === id)
     if (!a || !b) return set({ pending: null })
-    const length = Math.hypot(a.x - b.x, a.z - b.z), cost = length * PRICE[s.material] * (s.area / 35)
-    if (cost > s.budget) return set({ msg: `Custo R$ ${cost.toFixed(0)} > orçamento.`, pending: null })
-    const R = resistance(s.material, length, s.area)
+    const { length, R, cost } = cableQuote(a, b, s.material, s.area)
+    if (cost > s.budget) return set({ msg: strings.build.unaffordable })
     set({ ...withHistory(s), cables: [...s.cables, makeCable(s.nextId, a.id, b.id, s.material, s.area, length, R, cost)],
-      budget: s.budget - cost, nextId: s.nextId + 1, pending: null, msg: `Cabo ${length.toFixed(0)} m: R = ρL/A = ${R.toFixed(3)} Ω, R$ ${cost.toFixed(0)}` })
+      budget: s.budget - cost, nextId: s.nextId + 1, pending: null, msg: strings.build.connected(s.nextId) })
   },
   undo: () => { const s = get(); if (!s.past.length) return; const prev = s.past[s.past.length - 1], cur = snap(s); set({ ...prev, past: s.past.slice(0, -1), future: [cur, ...s.future], sel: null, pending: null, moving: null, msg: 'Desfeito.' }) },
   redo: () => { const s = get(); if (!s.future.length) return; const [next, ...rest] = s.future; set({ ...next, past: [...s.past, snap(s)], future: rest, sel: null, pending: null, moving: null, msg: 'Refeito.' }) },
@@ -200,14 +217,16 @@ export const useGame = create<S>((set, get) => ({
   setMaintenance: on => set({ maintenanceOn: on, msg: on ? `Manutenção ativa: R$ ${(MAINTENANCE_COST * 60).toFixed(0)}/min por componente.` : 'Manutenção desativada.' }),
   stepSim: async dt => {
     const s = get()
+    if (!simulationSpeed(s)) return
     try {
       const r = await solveAsync(s.nodes, s.cables, s.mult, s.rmult)
-      set({ ...advance(get(), r as Res, dt), simError: '' })
+      const current = get()
+      if (!simulationSpeed(current) || current.session !== s.session || current.time !== s.time || current.nodes !== s.nodes || current.cables !== s.cables) return
+      set({ ...advance(current, r, dt), simError: '' })
       const after = get()
-      if (after.time - after.lastSave >= AUTOSAVE_EVERY) {
-        set({ lastSave: after.time })
-        const slot = after.slot
-        setTimeout(() => { try { saveSlot(slot, source(get())) } catch { /* ignore */ } }, 0)
+      if (after.levelResult || after.time - after.lastSave >= AUTOSAVE_EVERY) {
+        const ok = saveSlot(after.slot, source(after))
+        set({ lastSave: after.time, ...(ok ? {} : { msg: strings.build.saveFailed }) })
       }
     } catch (e) {
       logError('stepSim', e)
@@ -226,15 +245,20 @@ export const useGame = create<S>((set, get) => ({
     const d = loadSlot(n)
     if (!d) return set({ msg: `Slot ${n} vazio ou corrompido.` })
     set({
-      ...d, view: d.view ?? get().view, slot: n, lastSave: d.time, paused: false, simError: '',
+      ...d, session: get().session + 1, view: d.view ?? 'orbit', slot: n, lastSave: d.time, paused: false, simError: '',
       report: null, sel: null, pending: null, moving: null, levelResult: null, overlay: null, photo: false,
-      past: [], future: [], combo: 1, calm: 0, demand: 0, supplied: 0, losses: 0,
-      powered: [], mismatch: [], nodeV: {}, event: '', spikeT: 0, stormT: 0, eventT: 0, eventIdx: 0, mult: 1, rmult: 1,
+      past: [], future: [], combo: 1, calm: 0, tool: 'sel', speed: 1, demand: d.nodes.reduce((sum, node) => sum + node.kW, 0), supplied: 0, losses: 0,
+      powered: [], mismatch: [], nodeV: {}, event: '', sampleTime: d.time, sampleRmult: 1,
+      spikeT: 0, stormT: 0, tripId: null, eventT: 0, eventIdx: 0,
+      mult: d.mode === 'campanha' && isHeatWave(d.time) ? WAVE_MULT : 1, rmult: 1,
       msg: `Save do slot ${n} carregado.`,
     })
   },
   reset: () => get().setMode(get().mode),
 }))
+
+export const simulationSpeed = (s: S) =>
+  s.screen === 'game' && !s.overlay && !s.paused && !s.report && !s.levelResult ? s.speed : 0
 
 const source = (s: S): SaveSource => ({
   nodes: s.nodes, cables: s.cables, budget: s.budget, nextId: s.nextId,
