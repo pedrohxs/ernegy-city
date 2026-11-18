@@ -10,6 +10,7 @@ export interface Prefs {
 }
 
 export const PREFS_KEY = 'energy-city-prefs'
+export const DEFAULT_VOLUMES = { master: 0.8, music: 0.2, sfx: 0.8, ambient: 0.6 }
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
 const num = (v: unknown, fallback: number) => (typeof v === 'number' && Number.isFinite(v) ? v : fallback)
@@ -27,10 +28,10 @@ export function parsePrefs(text: string | null): Prefs | null {
     return {
       quality: q,
       volumes: {
-        master: clamp(num(v.master, 0.8), 0, 1),
-        music: clamp(num(v.music, 0.5), 0, 1),
-        sfx: clamp(num(v.sfx, 0.8), 0, 1),
-        ambient: clamp(num(v.ambient, 0.6), 0, 1)
+        master: clamp(num(v.master, DEFAULT_VOLUMES.master), 0, 1),
+        music: clamp(num(v.music, DEFAULT_VOLUMES.music), 0, 1),
+        sfx: clamp(num(v.sfx, DEFAULT_VOLUMES.sfx), 0, 1),
+        ambient: clamp(num(v.ambient, DEFAULT_VOLUMES.ambient), 0, 1)
       },
       sensitivity: clamp(num(raw.sensitivity, 1), 0.2, 3),
       muted: raw.muted === true

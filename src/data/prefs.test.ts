@@ -14,7 +14,7 @@ describe('preferências da interface', () => {
   it('usa padrões seguros e limita valores fora da faixa', () => {
     const p = parsePrefs(JSON.stringify({ quality: 'media', volumes: { master: 4 }, sensitivity: 99 }))
     expect(p!.volumes.master).toBe(1)
-    expect(p!.volumes.music).toBe(0.5)
+    expect(p!.volumes.music).toBe(0.2)
     expect(p!.sensitivity).toBe(3)
   })
 

@@ -5,6 +5,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); 
 ## [Não lançado]
 
 - O jogo passa a se chamar **Rede Viva**.
+- Trilha procedural mais leve, com notas espaçadas e volume inicial de 20%. O controle de música continua independente dos efeitos e do ambiente.
 
 ### Eletricista e escala da cidade
 

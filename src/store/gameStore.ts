@@ -11,6 +11,7 @@ import { buildSeedCity } from '../game/city'
 import { SaveSource, loadSlot, migrateLegacy, saveSlot } from '../data/save'
 import { logError } from '../data/telemetry'
 import { strings } from '../i18n/pt-BR'
+import { DEFAULT_VOLUMES } from '../data/prefs'
 import type { Quality } from '../render/art'
 
 export interface Volumes { master: number; music: number; sfx: number; ambient: number }
@@ -90,7 +91,7 @@ const withHistory = (s: S): Pick<S, 'past' | 'future'> => ({ past: [...s.past, s
 export const useGame = create<S>((set, get) => ({
   ...init, view: 'orbit', night: false, muted: false, tool: 'gen', genType: 'gas', zoneType: 'casa', material: 'cobre', area: 35, tv: 110,
   codex: false, paused: false, speed: 1, slot: DEFAULT_SLOT, lastSave: 0,
-  quality: 'media', photo: false, volumes: { master: 0.8, music: 0.5, sfx: 0.8, ambient: 0.6 },
+  quality: 'media', photo: false, volumes: { ...DEFAULT_VOLUMES },
   screen: 'menu', overlay: null, sensitivity: 1, levelResult: null,
   set: p => set(p),
   setQuality: q => set({ quality: q }),

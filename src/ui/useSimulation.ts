@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { SimulationLoop } from '../game/simulation'
 import { simulationSpeed, useGame } from '../store/gameStore'
-import { beep, playClick, playMilestone, playPlace, setVolumes, startAudio, updateAudio } from '../audio/audio'
+import { beep, playClick, playMilestone, playPlace, startAudio, updateAudio } from '../audio/audio'
 import { advanceVisualTime } from '../game/visualClock'
 import { logError } from '../data/telemetry'
 
@@ -20,7 +20,6 @@ export function useSimulation(): void {
         if (audioAcc < AUDIO_EVERY) return
         audioAcc = 0
         const s = useGame.getState()
-        setVolumes(s.volumes)
         updateAudio({
           hum: s.nodes.filter(n => n.kind === 'trafo').reduce((t, n) => t + n.load, 0),
           siren: s.everPowered && s.demand > 0 && s.supplied < s.demand * 0.5,

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { setMuted } from '../audio/audio'
+import { setMuted, setVolumes } from '../audio/audio'
 import { loadPrefs, savePrefs } from '../data/prefs'
 import { useGame } from '../store/gameStore'
 
@@ -28,7 +28,10 @@ export function usePreferences(): void {
     savePrefs({ quality, volumes, sensitivity, muted })
   }, [ready, quality, volumes, sensitivity, muted])
 
-  // O módulo de áudio tem estado próprio; mantém o mute sincronizado com o save.
+  useEffect(() => {
+    setVolumes(volumes)
+  }, [volumes])
+
   useEffect(() => {
     setMuted(muted)
   }, [muted])
