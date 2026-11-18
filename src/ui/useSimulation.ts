@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { SimulationLoop } from '../game/simulation'
 import { simulationSpeed, useGame } from '../store/gameStore'
-import { beep, playClick, setVolumes, startAudio, updateAudio } from '../audio/audio'
+import { beep, playClick, playMilestone, playPlace, setVolumes, startAudio, updateAudio } from '../audio/audio'
 import { advanceVisualTime } from '../game/visualClock'
 import { logError } from '../data/telemetry'
 
@@ -30,7 +30,10 @@ export function useSimulation(): void {
       onError: e => { logError('simulation', e); console.error('[simulation]', e) },
     })
     const unsubscribe = useGame.subscribe((state, previous) => {
+      if (state.session !== previous.session || state.screen !== 'game') return
       if (state.report && state.report !== previous.report) beep()
+      else if ((state.everPowered && !previous.everPowered) || (state.levelResult && state.levelResult !== previous.levelResult)) playMilestone()
+      else if (state.nextId > previous.nextId && state.time === previous.time) playPlace()
     })
     const first = () => startAudio()
     window.addEventListener('pointerdown', first, { once: true })

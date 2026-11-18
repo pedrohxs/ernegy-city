@@ -1,7 +1,7 @@
 // Integração do fluxo principal: construir → simular → falhar → relatório.
 import { beforeEach, describe, expect, it } from 'vitest'
 import { HEALTH_MAX, REFUND, REPAIR_FRACTION, STARTER_NETWORK, T_AMB } from '../data/balance'
-import { firstLight } from '../game/firstLight'
+import { expansionStep, firstLight } from '../game/firstLight'
 import { useGame } from './gameStore'
 
 const g = () => useGame.getState()
@@ -40,6 +40,8 @@ describe('fluxo principal', () => {
     expect(g().nodes.filter(n => n.kind === 'zone')).toHaveLength(4)
     expect(g().cables).toHaveLength(4)
     expect(g().demand).toBeGreaterThan(60)
+    const zone = g().nodes.find(n => n.kind === 'zone' && n.id > 3)
+    expect(expansionStep(g())).toMatchObject({ kind: zone?.volt === 110 ? 'expandBranch' : 'expandTrafo', voltage: zone?.volt })
   })
   it('constrói gerador→trafo→zona, energiza e acumula resultado', async () => {
     g().set({ tool: 'gen', genType: 'gas' }); g().place(0, 0)

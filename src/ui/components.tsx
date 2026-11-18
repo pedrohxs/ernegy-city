@@ -1,9 +1,5 @@
-import { ButtonHTMLAttributes, CSSProperties, ReactNode, useState } from 'react'
+import { ButtonHTMLAttributes, ReactNode, useEffect, useId, useRef } from 'react'
 import css from './ui.module.css'
-
-export function Panel({ className = '', style, children }: { className?: string; style?: CSSProperties; children: ReactNode }) {
-  return <div className={`${css.panel} ${className}`} style={style}>{children}</div>
-}
 
 interface BtnProps extends ButtonHTMLAttributes<HTMLButtonElement> { active?: boolean; variant?: 'primary' | 'ghost' | 'danger'; size?: 'sm' | 'lg' }
 export function Button({ active, variant, size, className = '', children, ...rest }: BtnProps) {
@@ -11,11 +7,11 @@ export function Button({ active, variant, size, className = '', children, ...res
   return <button className={cls} {...rest}>{children}</button>
 }
 
-export function Select<T extends string | number>({ value, onChange, options, label }: { value: T; onChange: (v: T) => void; options: { value: T; label: string }[]; label?: string }) {
+export function Select<T extends string | number>({ value, onChange, options, label, compact }: { value: T; onChange: (v: T) => void; options: { value: T; label: string }[]; label?: string; compact?: boolean }) {
   return (
     <label className={css.field}>
-      {label && <span className={css.label}>{label}</span>}
-      <select className={css.select} value={value} onChange={e => onChange((typeof value === 'number' ? Number(e.target.value) : e.target.value) as T)}>
+      {label && !compact && <span className={css.label}>{label}</span>}
+      <select aria-label={compact ? label : undefined} className={css.select} value={value} onChange={e => onChange((typeof value === 'number' ? Number(e.target.value) : e.target.value) as T)}>
         {options.map(o => <option key={String(o.value)} value={o.value}>{o.label}</option>)}
       </select>
     </label>
@@ -32,21 +28,26 @@ export function Range({ label, value, onChange, min = 0, max = 1, step = 0.05, d
   )
 }
 
-export function Tooltip({ tip, children }: { tip: ReactNode; children: ReactNode }) {
-  const [on, setOn] = useState(false)
-  return (
-    <span className={css.tooltipWrap} onMouseEnter={() => setOn(true)} onMouseLeave={() => setOn(false)}>
-      {children}
-      {on && <span className={css.tooltip}>{tip}</span>}
-    </span>
-  )
-}
-
 export function Modal({ title, children, onClose, wide }: { title?: string; children: ReactNode; onClose?: () => void; wide?: boolean }) {
+  const id = useId()
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const previous = document.activeElement
+    ref.current?.focus()
+    return () => { if (previous instanceof HTMLElement && previous.isConnected) previous.focus() }
+  }, [])
   return (
     <div className={css.scrim} onClick={onClose}>
-      <div className={`${css.modal} ${wide ? css.modalWide : ''}`} onClick={e => e.stopPropagation()}>
-        {title && <h2 className={css.modalTitle}>{title}</h2>}
+      <div ref={ref} role="dialog" aria-modal="true" aria-labelledby={title ? id : undefined} tabIndex={-1}
+        className={`${css.modal} ${wide ? css.modalWide : ''}`} onClick={e => e.stopPropagation()} onKeyDown={e => {
+          if (e.key === 'Escape' && onClose) { e.preventDefault(); onClose(); return }
+          if (e.key !== 'Tab') return
+          const focusable = Array.from(e.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), a[href]'))
+          const first = focusable[0], last = focusable[focusable.length - 1]
+          if (e.shiftKey && (document.activeElement === first || document.activeElement === e.currentTarget)) { e.preventDefault(); last?.focus() }
+          else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus() }
+        }}>
+        {title && <h2 className={css.modalTitle} id={id}>{title}</h2>}
         {children}
       </div>
     </div>

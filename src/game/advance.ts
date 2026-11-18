@@ -12,18 +12,20 @@ import { nextLot } from './city'
 import { strings } from '../i18n/pt-BR'
 import { campaignComplete, isHeatWave, objective } from './objectives'
 import { faultDetail } from './diagnose'
+import { dayFactor, hourOf } from './clock'
 
 export interface Res { current: Record<number, number>; volt: Record<number, number>; drop: Record<number, number>; nodeLoad: Record<number, number>; nodeV: Record<number, number>; powered: number[]; mismatch: number[] }
 const FIXES = [...strings.report.fixes]
 
 export function advance(s: S, r: Res, dt: number, random = Math.random): Partial<S> {
   const time = s.time + dt, pw = new Set(r.powered)
+  const night = dayFactor(hourOf(time)) < 0.5
   let nodes = s.nodes.map(n => {
     // partida de gerador / reconexão após queda; solar só opera de dia
     let online = n.online, startLeft = n.startLeft
     if (n.kind === 'gen') {
       if (startLeft > 0) startLeft = Math.max(0, startLeft - dt)
-      online = startLeft <= 0 && !(n.genType === 'solar' && s.night)
+      online = startLeft <= 0 && !(n.genType === 'solar' && night)
     }
     return stepNode({ ...n, online, startLeft, maintained: s.maintenanceOn }, r.nodeLoad[n.id] ?? 0, dt)
   })
@@ -139,7 +141,7 @@ export function advance(s: S, r: Res, dt: number, random = Math.random): Partial
   }
 
   const part: Partial<S> = {
-    time, sampleTime: s.time, sampleRmult: s.rmult, nodes, cables, nextId, event, mult, rmult, spikeT, stormT, tripId, eventT, eventIdx, report, calm, combo, goalT, level, stars, totalStars, budget, msg, levelResult,
+    time, night, sampleTime: s.time, sampleRmult: s.rmult, nodes, cables, nextId, event, mult, rmult, spikeT, stormT, tripId, eventT, eventIdx, report, calm, combo, goalT, level, stars, totalStars, budget, msg, levelResult,
     demand, supplied, losses, challengeDone, everPowered, serviceT, outageT, criticalT, nodeV: r.nodeV,
     score: s.score + supplied * combo * dt * 0.1, powered: r.powered, mismatch: r.mismatch,
   }

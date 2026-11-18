@@ -1,25 +1,7 @@
 import { useMemo, useRef } from 'react'
-import type { MutableRefObject } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { getVisualTime } from '../game/visualClock'
-
-export interface FlowState { speed: number; color: THREE.Color; visible: boolean }
-
-// Lê velocidade/cor/visibilidade de um ref a cada quadro: evita re-render por tick.
-export function Flow({ curve, state }: { curve: THREE.Curve<THREE.Vector3>; state: MutableRefObject<FlowState> }) {
-  const refs = useRef<(THREE.Mesh | null)[]>([])
-  useFrame(() => {
-    const st = state.current, t = getVisualTime()
-    refs.current.forEach((m, i) => {
-      if (!m) return
-      m.visible = st.visible
-      m.position.copy(curve.getPoint((t * st.speed + i / 5) % 1))
-      ;(m.material as THREE.MeshBasicMaterial).color.copy(st.color)
-    })
-  })
-  return <>{[0, 1, 2, 3, 4].map(i => <mesh key={i} ref={el => { refs.current[i] = el }} visible={false}><sphereGeometry args={[0.7]} /><meshBasicMaterial /></mesh>)}</>
-}
 
 export function Smoke({ x, y, z }: { x: number; y: number; z: number }) {
   const refs = useRef<(THREE.Mesh | null)[]>([])

@@ -148,7 +148,7 @@ export function nextAction(s: NextActionInput): Diagnosis {
     return {
       tone: 'info',
       title: 'Coloque um gerador',
-      detail: 'No painel Geração, escolha Gerador e clique no chão perto das casas.',
+      detail: 'Escolha Gerador e clique em um ponto livre no chão.',
       fix: 'Ele produz em 13,8 kV; o gás começa em 2 s e a hídrica em 8 s.'
     }
   }
@@ -167,7 +167,7 @@ export function nextAction(s: NextActionInput): Diagnosis {
     return {
       tone: 'info',
       title: 'Coloque um transformador',
-      detail: 'No painel Transmissão, escolha Trafo. Ele abaixa 13,8 kV para 110 V ou 220 V.',
+      detail: 'Escolha Transformador. Ele abaixa 13,8 kV para 110 V ou 220 V.',
       fix: 'Casas usam 110 V; prédios e hospitais usam 220 V.'
     }
   }
@@ -175,16 +175,14 @@ export function nextAction(s: NextActionInput): Diagnosis {
     return {
       tone: 'info',
       title: 'Adicione uma zona consumidora',
-      detail: 'No painel Consumo, escolha Casa, Prédio ou Hospital e clique no chão.',
+      detail: 'Em Outras peças, escolha Imóvel. Clique no chão após escolher Casa, Prédio ou Hospital.',
       fix: 'A zona precisa da mesma tensão que o trafo entrega.'
     }
   }
   if (failedCable) {
     return {
-      tone: 'bad',
-      title: `Cabo C-${failedCable.id} queimado`,
-      detail: `Ele passou de ${T_MAX} °C e parou de conduzir.`,
-      fix: 'Selecione o cabo para reparar ou remover.'
+      ...diagnoseCable(failedCable),
+      title: `Cabo C-${failedCable.id} em falha`,
     }
   }
   if (mismatch.length) {

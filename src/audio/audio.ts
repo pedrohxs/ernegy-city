@@ -69,6 +69,22 @@ export function playPlace(): void {
   const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'triangle'; o.frequency.setValueAtTime(330, ctx.currentTime); o.frequency.exponentialRampToValueAtTime(660, ctx.currentTime + 0.12); g.gain.value = 0.06
   o.connect(g); g.connect(sfxBus); o.start(); o.stop(ctx.currentTime + 0.15)
 }
+export function playMilestone(): void {
+  if (!ctx || muted) return
+  const t = ctx.currentTime
+  for (const [i, frequency] of [392, 523.25, 659.25].entries()) {
+    const oscillator = ctx.createOscillator()
+    const gain = ctx.createGain()
+    const start = t + i * 0.075
+    oscillator.type = 'sine'
+    oscillator.frequency.value = frequency
+    gain.gain.setValueAtTime(0, start)
+    gain.gain.linearRampToValueAtTime(0.075, start + 0.025)
+    gain.gain.exponentialRampToValueAtTime(0.001, start + 0.23)
+    oscillator.connect(gain); gain.connect(sfxBus)
+    oscillator.start(start); oscillator.stop(start + 0.24)
+  }
+}
 export function beep(): void {
   try {
     startAudio(); if (!ctx || muted) return

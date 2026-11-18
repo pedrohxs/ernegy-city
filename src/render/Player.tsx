@@ -30,6 +30,7 @@ export default function Player() {
   const overlay = useGame(s => s.overlay)
   const paused = useGame(s => s.paused)
   const report = useGame(s => s.report)
+  const levelResult = useGame(s => s.levelResult)
   const { camera } = useThree()
   const grp = useRef<THREE.Group>(null), legs = useRef<(THREE.Group | null)[]>([])
   const st = useRef({ x: 0, z: 40, yaw: 0, pitch: 0.3, walk: 0, vx: 0, vz: 0, init: false })
@@ -60,11 +61,11 @@ export default function Player() {
   }, [])
   useEffect(() => { st.current.init = false }, [view, photo])
   // Trocar de câmera, abrir menu/pausa ou receber um relatório cancela o movimento.
-  useEffect(() => { keys.current = {}; vel.current.set(0, 0, 0) }, [view, photo, overlay, paused, report])
+  useEffect(() => { keys.current = {}; vel.current.set(0, 0, 0) }, [view, photo, overlay, paused, report, levelResult])
   useFrame((_, dt) => {
     const s3 = useGame.getState()
     const v = s3.view
-    if (s3.screen !== 'game' || v === 'orbit' || s3.photo || s3.overlay !== null || s3.paused || s3.report !== null) {
+    if (s3.screen !== 'game' || v === 'orbit' || s3.photo || s3.overlay !== null || s3.paused || s3.report !== null || s3.levelResult) {
       vel.current.set(0, 0, 0)
       return
     }
@@ -114,6 +115,7 @@ export default function Player() {
     camera.position.copy(safe)
     camera.lookAt(look.current)
   })
+  if (view !== 'terceira' || photo) return null
   return (
     <group ref={grp} position={[0, 0, 40]}>
       <GltfOr name="player" scale={1} fit={2.2}>

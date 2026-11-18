@@ -5,6 +5,7 @@ import { solveAsync } from '../electrical/solveService'
 import { advance } from '../game/advance'
 import { cableQuote, constructionCost, lotOccupied } from '../game/construction'
 import { isHeatWave } from '../game/objectives'
+import { dayFactor, hourOf } from '../game/clock'
 import { SCENARIOS } from '../game/scenarios'
 import { buildSeedCity } from '../game/city'
 import { SaveSource, loadSlot, migrateLegacy, saveSlot } from '../data/save'
@@ -38,6 +39,7 @@ export interface S {
   demand: number; supplied: number; losses: number; event: string
   spikeT: number; stormT: number; tripId: number | null; eventT: number; eventIdx: number; maintenanceOn: boolean
   session: number; sampleTime: number; sampleRmult: number
+  guideVisible: boolean; cameraReset: number; hoverNode: number | null; isScenario: boolean
   mode: Mode; done: string[]; challengeDone: boolean; everPowered: boolean
   serviceT: number; outageT: number; criticalT: number
   paused: boolean; speed: Speed; slot: number; lastSave: number; simError: string
@@ -75,7 +77,7 @@ const init = {
   nodes: [] as GNode[], cables: [] as Cable[], powered: [] as number[], mismatch: [] as number[], nodeV: {} as Record<number, number>,
   budget: levelAt(1).budget, nextId: 1, score: 0, level: 1, stars: 0, totalStars: 0, combo: 1, calm: 0, goalT: 0, time: 0, mult: 1, rmult: 1,
   demand: 0, supplied: 0, losses: 0, event: '', spikeT: 0, stormT: 0, tripId: null, eventT: 0, eventIdx: 0, maintenanceOn: false,
-  session: 0, sampleTime: 0, sampleRmult: 1,
+  session: 0, sampleTime: 0, sampleRmult: 1, guideVisible: true, cameraReset: 0, hoverNode: null as number | null, isScenario: false,
   report: null as Report | null, sel: null as Sel | null, pending: null as number | null, moving: null as number | null,
   msg: 'Coloque um gerador (13,8 kV).', mode: 'campanha' as Mode, done: [] as string[], challengeDone: false, everPowered: false, serviceT: 0, outageT: 0, criticalT: 0, simError: '',
   past: [] as Snapshot[], future: [] as Snapshot[],
@@ -104,9 +106,14 @@ export const useGame = create<S>((set, get) => ({
   loadScenario: id => {
     const sc = SCENARIOS[id]
     if (!sc) return
+    const before = get()
+    if (before.screen === 'game' && !before.isScenario && !saveSlot(before.slot, source(before))) {
+      set({ msg: strings.build.saveFailed, overlay: null })
+      return
+    }
     const { nodes, cables } = sc.build()
     const ids = [...nodes.map(n => n.id), ...cables.map(c => c.id)]
-    set({ ...init, session: get().session + 1, nodes, cables, nextId: Math.max(1, ...ids) + 1, budget: SANDBOX_BUDGET, mode: 'sandbox', screen: 'game', overlay: null, paused: false, view: 'orbit', photo: false, tool: 'sel', lastSave: 0, levelResult: null, msg: `Cenário: ${sc.title}` })
+    set({ ...init, isScenario: true, session: before.session + 1, nodes, cables, nextId: Math.max(1, ...ids) + 1, budget: SANDBOX_BUDGET, mode: 'sandbox', screen: 'game', overlay: null, paused: false, view: 'orbit', photo: false, tool: 'sel', lastSave: 0, levelResult: null, msg: `Cenário: ${sc.title}` })
   },
   setMode: m => {
     const seed = m === 'sandbox' ? { nodes: [], nextId: 1, demand: 0 } : buildSeedCity()
@@ -224,7 +231,7 @@ export const useGame = create<S>((set, get) => ({
       if (!simulationSpeed(current) || current.session !== s.session || current.time !== s.time || current.nodes !== s.nodes || current.cables !== s.cables) return
       set({ ...advance(current, r, dt), simError: '' })
       const after = get()
-      if (after.levelResult || after.time - after.lastSave >= AUTOSAVE_EVERY) {
+      if (!after.isScenario && (after.levelResult || after.time - after.lastSave >= AUTOSAVE_EVERY)) {
         const ok = saveSlot(after.slot, source(after))
         set({ lastSave: after.time, ...(ok ? {} : { msg: strings.build.saveFailed }) })
       }
@@ -236,7 +243,7 @@ export const useGame = create<S>((set, get) => ({
   save: slot => {
     const s = get(), n = slot ?? s.slot
     const ok = saveSlot(n, source(s))
-    set({ slot: n, lastSave: s.time, msg: ok ? `Jogo salvo no slot ${n}.` : 'Falha ao salvar.' })
+    set({ slot: n, lastSave: s.time, isScenario: ok ? false : s.isScenario, msg: ok ? `Jogo salvo no slot ${n + 1}.` : strings.build.saveFailed })
     return ok
   },
   load: slot => {
@@ -245,7 +252,8 @@ export const useGame = create<S>((set, get) => ({
     const d = loadSlot(n)
     if (!d) return set({ msg: `Slot ${n} vazio ou corrompido.` })
     set({
-      ...d, session: get().session + 1, view: d.view ?? 'orbit', slot: n, lastSave: d.time, paused: false, simError: '',
+      ...d, isScenario: false, session: get().session + 1, view: d.view ?? 'orbit', slot: n, lastSave: d.time, paused: false, simError: '',
+      night: dayFactor(hourOf(d.time)) < 0.5, guideVisible: true, cameraReset: 0, hoverNode: null,
       report: null, sel: null, pending: null, moving: null, levelResult: null, overlay: null, photo: false,
       past: [], future: [], combo: 1, calm: 0, tool: 'sel', speed: 1, demand: d.nodes.reduce((sum, node) => sum + node.kW, 0), supplied: 0, losses: 0,
       powered: [], mismatch: [], nodeV: {}, event: '', sampleTime: d.time, sampleRmult: 1,
@@ -254,7 +262,11 @@ export const useGame = create<S>((set, get) => ({
       msg: `Save do slot ${n} carregado.`,
     })
   },
-  reset: () => get().setMode(get().mode),
+  reset: () => {
+    const s = get()
+    s.setMode(s.mode)
+    if (s.isScenario) set({ isScenario: true })
+  },
 }))
 
 export const simulationSpeed = (s: S) =>
